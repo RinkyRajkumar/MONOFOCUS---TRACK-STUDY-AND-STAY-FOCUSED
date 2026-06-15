@@ -12,6 +12,30 @@ export interface Settings {
   autoStartFocus: boolean;
 }
 
+export interface BlockedWebsite {
+  id: string;
+  pattern: string;
+  category?: string;
+  enabled: boolean;
+}
+
+export interface BlockedApp {
+  id: string;
+  name: string;
+  exePath?: string;
+  enabled: boolean;
+}
+
+export interface BlockingSettings {
+  websites: BlockedWebsite[];
+  apps: BlockedApp[];
+  notifications: {
+    silenceDuringFocus: boolean;
+    useWindowsFocus: boolean;
+    restoreAfterSession: boolean;
+  };
+}
+
 export interface TimerState {
   mode: TimerMode;
   status: TimerStatus;
@@ -37,7 +61,9 @@ export interface DailyStats {
 
 export interface PersistedState {
   settings: Settings;
+  blockingSettings: BlockingSettings;
   timer: TimerState;
   tasks: Task[];
   stats: DailyStats;
+  focusHistory: Record<string, number>;
 }

@@ -12,6 +12,7 @@ import {
 import { loadState, saveState } from "@/lib/storage";
 import type {
   DailyStats,
+  BlockingSettings,
   PersistedState,
   Settings,
   Task,
@@ -93,17 +94,80 @@ export interface PomodoroController extends PersistedState {
   toggleTask: (id: string) => void;
   deleteTask: (id: string) => void;
   updateSettings: (settings: Settings) => void;
+  updateBlockingSettings: (settings: BlockingSettings) => void;
   toggleSound: () => void;
+  notificationNotice: string | null;
+  dismissNotificationNotice: () => void;
+  openWindowsNotificationSettings: () => Promise<boolean>;
 }
 
 export const usePomodoro = (): PomodoroController => {
   const [state, setState] = useState<PersistedState>(loadState);
+  const [notificationNotice, setNotificationNotice] = useState<string | null>(
+    null,
+  );
   const stateRef = useRef(state);
   stateRef.current = state;
 
   useEffect(() => {
     saveState(state);
   }, [state]);
+
+  const openWindowsNotificationSettings = useCallback(async (): Promise<boolean> => {
+    if (!window.monoFocus) {
+      return false;
+    }
+
+    return window.monoFocus.openWindowsNotificationSettings();
+  }, []);
+
+  const trySilenceNotifications = useCallback(async (): Promise<void> => {
+    const notifications =
+      stateRef.current.blockingSettings.notifications;
+    if (!notifications.silenceDuringFocus) {
+      return;
+    }
+
+    if (!window.monoFocus) {
+      setNotificationNotice(
+        "System-wide notification control requires a desktop app build.",
+      );
+      return;
+    }
+
+    const platform = await window.monoFocus.getPlatform();
+    if (platform !== "win32") {
+      setNotificationNotice(
+        "System notification blocking is currently available only on Windows.",
+      );
+      return;
+    }
+
+    if (!notifications.useWindowsFocus) {
+      return;
+    }
+
+    const result = await window.monoFocus.tryEnableFocusMode();
+    if (!result.supported) {
+      setNotificationNotice(
+        "Open Windows notification settings to enable Do Not Disturb for focus sessions.",
+      );
+    }
+  }, []);
+
+  const tryRestoreNotifications = useCallback(async (): Promise<void> => {
+    const notifications =
+      stateRef.current.blockingSettings.notifications;
+    if (
+      !notifications.silenceDuringFocus ||
+      !notifications.restoreAfterSession ||
+      !window.monoFocus
+    ) {
+      return;
+    }
+
+    await window.monoFocus.tryRestoreNotificationMode();
+  }, []);
 
   const transitionSession = useCallback(
     (completedNaturally: boolean): void => {
@@ -148,7 +212,19 @@ export const usePomodoro = (): PomodoroController => {
                 previous.settings.focusMinutes,
             }
           : refreshDailyStats(previous.stats),
+        focusHistory: completedFocus
+          ? {
+              ...previous.focusHistory,
+              [getLocalDateKey()]:
+                (previous.focusHistory[getLocalDateKey()] ?? 0) +
+                previous.settings.focusMinutes,
+            }
+          : previous.focusHistory,
       }));
+
+      if (completedMode === "focus") {
+        void tryRestoreNotifications();
+      }
 
       if (completedNaturally) {
         void notifySessionComplete(
@@ -160,9 +236,13 @@ export const usePomodoro = (): PomodoroController => {
         if (nextStatus === "running" && current.settings.soundEnabled) {
           playSessionStartTone(nextMode, 850);
         }
+
+        if (nextStatus === "running" && nextMode === "focus") {
+          void trySilenceNotifications();
+        }
       }
     },
-    [],
+    [tryRestoreNotifications, trySilenceNotifications],
   );
 
   useEffect(() => {
@@ -218,7 +298,11 @@ export const usePomodoro = (): PomodoroController => {
       },
       stats: refreshDailyStats(previous.stats),
     }));
-  }, []);
+
+    if (current.timer.mode === "focus") {
+      void trySilenceNotifications();
+    }
+  }, [trySilenceNotifications]);
 
   const pause = useCallback((): void => {
     if (stateRef.current.settings.soundEnabled) {
@@ -246,6 +330,10 @@ export const usePomodoro = (): PomodoroController => {
   }, []);
 
   const reset = useCallback((): void => {
+    const shouldRestore =
+      stateRef.current.timer.mode === "focus" &&
+      stateRef.current.timer.status !== "idle";
+
     setState((previous) => ({
       ...previous,
       timer: {
@@ -259,7 +347,11 @@ export const usePomodoro = (): PomodoroController => {
         focusesCompletedInCycle: 0,
       },
     }));
-  }, []);
+
+    if (shouldRestore) {
+      void tryRestoreNotifications();
+    }
+  }, [tryRestoreNotifications]);
 
   const skip = useCallback((): void => {
     transitionSession(false);
@@ -347,6 +439,16 @@ export const usePomodoro = (): PomodoroController => {
     });
   }, []);
 
+  const updateBlockingSettings = useCallback(
+    (blockingSettings: BlockingSettings): void => {
+      setState((previous) => ({
+        ...previous,
+        blockingSettings,
+      }));
+    },
+    [],
+  );
+
   const toggleSound = useCallback((): void => {
     setState((previous) => ({
       ...previous,
@@ -367,6 +469,10 @@ export const usePomodoro = (): PomodoroController => {
     toggleTask,
     deleteTask,
     updateSettings,
+    updateBlockingSettings,
     toggleSound,
+    notificationNotice,
+    dismissNotificationNotice: () => setNotificationNotice(null),
+    openWindowsNotificationSettings,
   };
 };

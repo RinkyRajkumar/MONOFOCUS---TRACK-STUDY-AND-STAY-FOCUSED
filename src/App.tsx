@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BottomNav } from "@/components/BottomNav";
 import type { AppView } from "@/components/BottomNav";
 import { FocusBlockPanel } from "@/components/FocusBlockPanel";
@@ -12,6 +12,18 @@ import { usePomodoro } from "@/hooks/usePomodoro";
 export function App(): React.JSX.Element {
   const [activeView, setActiveView] = useState<AppView>("timer");
   const pomodoro = usePomodoro();
+
+  useEffect(() => {
+    window.monoFocus?.updateFocusOverlay({
+      mode: pomodoro.timer.mode,
+      status: pomodoro.timer.status,
+      remainingSeconds: pomodoro.timer.remainingSeconds,
+    });
+  }, [
+    pomodoro.timer.mode,
+    pomodoro.timer.remainingSeconds,
+    pomodoro.timer.status,
+  ]);
 
   const handleNavigation = (view: AppView): void => {
     setActiveView(view);
@@ -31,7 +43,12 @@ export function App(): React.JSX.Element {
               onDeleteTask={pomodoro.deleteTask}
             />
           ) : activeView === "block" ? (
-            <FocusBlockPanel settings={pomodoro.settings} />
+            <FocusBlockPanel
+              settings={pomodoro.blockingSettings}
+              timer={pomodoro.timer}
+              onChange={pomodoro.updateBlockingSettings}
+              onOpenWindowsSettings={pomodoro.openWindowsNotificationSettings}
+            />
           ) : activeView === "settings" ? (
             <SettingsPage
               settings={pomodoro.settings}
@@ -40,9 +57,7 @@ export function App(): React.JSX.Element {
           ) : activeView === "report" ? (
             <ReportPage
               stats={pomodoro.stats}
-              settings={pomodoro.settings}
-              tasks={pomodoro.tasks}
-              timer={pomodoro.timer}
+              focusHistory={pomodoro.focusHistory}
             />
           ) : (
             <TimerCard
@@ -62,6 +77,26 @@ export function App(): React.JSX.Element {
           )}
         </div>
       </main>
+
+      {pomodoro.notificationNotice ? (
+        <div className="system-focus-notice" role="status">
+          <p>{pomodoro.notificationNotice}</p>
+          <button
+            type="button"
+            onClick={() => void pomodoro.openWindowsNotificationSettings()}
+          >
+            Open settings
+          </button>
+          <button
+            className="system-focus-notice-close"
+            type="button"
+            aria-label="Dismiss notification notice"
+            onClick={pomodoro.dismissNotificationNotice}
+          >
+            ×
+          </button>
+        </div>
+      ) : null}
 
       <div className="nav-dock">
         <BottomNav activeView={activeView} onSelect={handleNavigation} />

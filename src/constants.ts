@@ -1,4 +1,4 @@
-import type { Settings, TimerMode } from "@/types";
+import type { BlockingSettings, Settings, TimerMode } from "@/types";
 
 export const DEFAULT_SETTINGS: Settings = {
   focusMinutes: 25,
@@ -9,6 +9,16 @@ export const DEFAULT_SETTINGS: Settings = {
   notificationsEnabled: true,
   autoStartBreaks: false,
   autoStartFocus: false,
+};
+
+export const DEFAULT_BLOCKING_SETTINGS: BlockingSettings = {
+  websites: [],
+  apps: [],
+  notifications: {
+    silenceDuringFocus: false,
+    useWindowsFocus: true,
+    restoreAfterSession: true,
+  },
 };
 
 export const MODE_LABELS: Record<TimerMode, string> = {

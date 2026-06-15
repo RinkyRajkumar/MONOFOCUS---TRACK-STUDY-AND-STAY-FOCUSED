@@ -34,10 +34,8 @@ const NAV_ITEMS: Array<{
     label: "Block",
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden="true">
-        <rect x="4" y="4" width="6.5" height="6.5" rx="1.4" />
-        <rect x="13.5" y="4" width="6.5" height="6.5" rx="1.4" />
-        <rect x="4" y="13.5" width="6.5" height="6.5" rx="1.4" />
-        <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.4" />
+        <circle cx="12" cy="12" r="8.25" />
+        <path d="M6.15 17.85 17.85 6.15" />
       </svg>
     ),
   },
