@@ -1,113 +1,142 @@
 $ErrorActionPreference = "Stop"
 
 Add-Type -AssemblyName System.Drawing
-Add-Type @"
-using System;
-using System.Runtime.InteropServices;
 
-public static class IconHandle {
-    [DllImport("user32.dll", SetLastError = true)]
-    public static extern bool DestroyIcon(IntPtr handle);
-}
-"@
-
-function New-RoundedRectanglePath {
+function New-ScaledBitmap {
     param(
-        [System.Drawing.RectangleF]$Rectangle,
-        [float]$Radius
+        [System.Drawing.Image]$Source,
+        [int]$Size
     )
 
-    $diameter = $Radius * 2
-    $path = New-Object System.Drawing.Drawing2D.GraphicsPath
-    $path.AddArc($Rectangle.X, $Rectangle.Y, $diameter, $diameter, 180, 90)
-    $path.AddArc(
-        $Rectangle.Right - $diameter,
-        $Rectangle.Y,
-        $diameter,
-        $diameter,
-        270,
-        90
+    $bitmap = New-Object System.Drawing.Bitmap(
+        $Size,
+        $Size,
+        [System.Drawing.Imaging.PixelFormat]::Format32bppArgb
     )
-    $path.AddArc(
-        $Rectangle.Right - $diameter,
-        $Rectangle.Bottom - $diameter,
-        $diameter,
-        $diameter,
-        0,
-        90
+    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+
+    try {
+        $graphics.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceCopy
+        $graphics.CompositingQuality = [System.Drawing.Drawing2D.CompositingQuality]::HighQuality
+        $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+        $graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+        $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+        $graphics.Clear([System.Drawing.Color]::Transparent)
+        $graphics.DrawImage(
+            $Source,
+            (New-Object System.Drawing.Rectangle(0, 0, $Size, $Size)),
+            0,
+            0,
+            $Source.Width,
+            $Source.Height,
+            [System.Drawing.GraphicsUnit]::Pixel
+        )
+    }
+    finally {
+        $graphics.Dispose()
+    }
+
+    return $bitmap
+}
+
+function Write-PngIcon {
+    param(
+        [string]$PngPath,
+        [string]$IconPath
     )
-    $path.AddArc(
-        $Rectangle.X,
-        $Rectangle.Bottom - $diameter,
-        $diameter,
-        $diameter,
-        90,
-        90
-    )
-    $path.CloseFigure()
-    return $path
+
+    $pngBytes = [System.IO.File]::ReadAllBytes($PngPath)
+    $stream = [System.IO.File]::Create($IconPath)
+    $writer = New-Object System.IO.BinaryWriter($stream)
+
+    try {
+        $writer.Write([uint16]0)
+        $writer.Write([uint16]1)
+        $writer.Write([uint16]1)
+        $writer.Write([byte]0)
+        $writer.Write([byte]0)
+        $writer.Write([byte]0)
+        $writer.Write([byte]0)
+        $writer.Write([uint16]1)
+        $writer.Write([uint16]32)
+        $writer.Write([uint32]$pngBytes.Length)
+        $writer.Write([uint32]22)
+        $writer.Write($pngBytes)
+    }
+    finally {
+        $writer.Dispose()
+        $stream.Dispose()
+    }
 }
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $buildDirectory = Join-Path $projectRoot "build"
-New-Item -ItemType Directory -Path $buildDirectory -Force | Out-Null
-
+$publicDirectory = Join-Path $projectRoot "public"
+$sourcePath = Join-Path $buildDirectory "icon-source.png"
 $pngPath = Join-Path $buildDirectory "icon.png"
+$icoPngPath = Join-Path $buildDirectory "icon-256.png"
 $icoPath = Join-Path $buildDirectory "icon.ico"
-$bitmap = New-Object System.Drawing.Bitmap(
-    256,
-    256,
+$publicIconPath = Join-Path $publicDirectory "icon.png"
+
+if (-not (Test-Path -LiteralPath $sourcePath)) {
+    throw "Missing icon artwork: $sourcePath"
+}
+
+New-Item -ItemType Directory -Path $buildDirectory -Force | Out-Null
+New-Item -ItemType Directory -Path $publicDirectory -Force | Out-Null
+
+$source = [System.Drawing.Bitmap]::FromFile($sourcePath)
+$workingSize = 2048
+$working = New-Object System.Drawing.Bitmap(
+    $workingSize,
+    $workingSize,
     [System.Drawing.Imaging.PixelFormat]::Format32bppArgb
 )
-$graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-$graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-$graphics.Clear([System.Drawing.Color]::Transparent)
-
-$backgroundPath = New-RoundedRectanglePath `
-    -Rectangle (New-Object System.Drawing.RectangleF(10, 10, 236, 236)) `
-    -Radius 48
-$backgroundBrush = New-Object System.Drawing.SolidBrush(
-    [System.Drawing.Color]::FromArgb(255, 16, 16, 18)
-)
-$borderPen = New-Object System.Drawing.Pen(
-    [System.Drawing.Color]::FromArgb(255, 244, 244, 242),
-    8
-)
-$borderPen.Alignment = [System.Drawing.Drawing2D.PenAlignment]::Inset
-$ringPen = New-Object System.Drawing.Pen(
-    [System.Drawing.Color]::FromArgb(255, 244, 244, 242),
-    9
-)
-$ringPen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
-$ringPen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
-$dotBrush = New-Object System.Drawing.SolidBrush(
-    [System.Drawing.Color]::FromArgb(255, 244, 244, 242)
-)
-
-$graphics.FillPath($backgroundBrush, $backgroundPath)
-$graphics.DrawPath($borderPen, $backgroundPath)
-$graphics.DrawArc($ringPen, 62, 62, 132, 132, -84, 322)
-$graphics.FillEllipse($dotBrush, 118, 118, 20, 20)
-$bitmap.Save($pngPath, [System.Drawing.Imaging.ImageFormat]::Png)
-
-$iconHandle = $bitmap.GetHicon()
-$icon = [System.Drawing.Icon]::FromHandle($iconHandle)
-$stream = [System.IO.File]::Create($icoPath)
+$graphics = [System.Drawing.Graphics]::FromImage($working)
+$clipPath = New-Object System.Drawing.Drawing2D.GraphicsPath
 
 try {
-    $icon.Save($stream)
+    $graphics.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceCopy
+    $graphics.CompositingQuality = [System.Drawing.Drawing2D.CompositingQuality]::HighQuality
+    $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+    $graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+    $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+    $graphics.Clear([System.Drawing.Color]::Transparent)
+
+    # The supplied preview includes a checkerboard canvas. Clip to the badge's
+    # outer ring so the installed icon gets genuine transparent corners.
+    $clipPath.AddEllipse(75, 50, 1900, 1900)
+    $graphics.SetClip($clipPath)
+    $graphics.DrawImage(
+        $source,
+        (New-Object System.Drawing.Rectangle(0, 0, $workingSize, $workingSize)),
+        0,
+        0,
+        $source.Width,
+        $source.Height,
+        [System.Drawing.GraphicsUnit]::Pixel
+    )
 }
 finally {
-    $stream.Dispose()
-    $icon.Dispose()
-    [IconHandle]::DestroyIcon($iconHandle) | Out-Null
-    $dotBrush.Dispose()
-    $ringPen.Dispose()
-    $borderPen.Dispose()
-    $backgroundBrush.Dispose()
-    $backgroundPath.Dispose()
+    $clipPath.Dispose()
     $graphics.Dispose()
-    $bitmap.Dispose()
+    $source.Dispose()
 }
 
-Write-Output "Generated build/icon.png and build/icon.ico"
+$appIcon = New-ScaledBitmap -Source $working -Size 1024
+$icoImage = New-ScaledBitmap -Source $working -Size 256
+
+try {
+    $appIcon.Save($pngPath, [System.Drawing.Imaging.ImageFormat]::Png)
+    $appIcon.Save($publicIconPath, [System.Drawing.Imaging.ImageFormat]::Png)
+    $icoImage.Save($icoPngPath, [System.Drawing.Imaging.ImageFormat]::Png)
+    Write-PngIcon -PngPath $icoPngPath -IconPath $icoPath
+    Remove-Item -LiteralPath $icoPngPath -Force
+}
+finally {
+    $icoImage.Dispose()
+    $appIcon.Dispose()
+    $working.Dispose()
+}
+
+Write-Output "Generated build/icon.png, build/icon.ico, and public/icon.png"

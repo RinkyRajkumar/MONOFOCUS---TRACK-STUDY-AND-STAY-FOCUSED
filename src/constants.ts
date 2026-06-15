@@ -17,12 +17,6 @@ export const MODE_LABELS: Record<TimerMode, string> = {
   longBreak: "Long break",
 };
 
-export const MODE_EYEBROWS: Record<TimerMode, string> = {
-  focus: "Deep work session",
-  shortBreak: "Step away",
-  longBreak: "Reset and recharge",
-};
-
 export const STORAGE_KEY = "monofocus-state-v1";
 
 export const getDurationSeconds = (

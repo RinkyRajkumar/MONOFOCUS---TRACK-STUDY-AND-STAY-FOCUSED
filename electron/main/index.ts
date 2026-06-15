@@ -8,6 +8,7 @@ const createWindow = (): void => {
     minWidth: 720,
     minHeight: 680,
     show: false,
+    icon: join(__dirname, "../../build/icon.png"),
     backgroundColor: "#09090a",
     autoHideMenuBar: true,
     titleBarStyle: "hidden",

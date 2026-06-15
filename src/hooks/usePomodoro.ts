@@ -4,7 +4,11 @@ import {
   getDurationSeconds,
 } from "@/constants";
 import { getLocalDateKey } from "@/lib/date";
-import { playCompletionTone } from "@/lib/sound";
+import {
+  playCompletionTone,
+  playPauseTone,
+  playSessionStartTone,
+} from "@/lib/sound";
 import { loadState, saveState } from "@/lib/storage";
 import type {
   DailyStats,
@@ -152,6 +156,10 @@ export const usePomodoro = (): PomodoroController => {
           nextMode,
           current.settings,
         );
+
+        if (nextStatus === "running" && current.settings.soundEnabled) {
+          playSessionStartTone(nextMode, 850);
+        }
       }
     },
     [],
@@ -193,6 +201,14 @@ export const usePomodoro = (): PomodoroController => {
   }, [state.timer.status, state.timer.endsAt, transitionSession]);
 
   const start = useCallback((): void => {
+    const current = stateRef.current;
+    if (
+      current.timer.status !== "running" &&
+      current.settings.soundEnabled
+    ) {
+      playSessionStartTone(current.timer.mode);
+    }
+
     setState((previous) => ({
       ...previous,
       timer: {
@@ -205,6 +221,10 @@ export const usePomodoro = (): PomodoroController => {
   }, []);
 
   const pause = useCallback((): void => {
+    if (stateRef.current.settings.soundEnabled) {
+      playPauseTone();
+    }
+
     setState((previous) => {
       const remainingSeconds = previous.timer.endsAt
         ? Math.max(
@@ -229,13 +249,14 @@ export const usePomodoro = (): PomodoroController => {
     setState((previous) => ({
       ...previous,
       timer: {
-        ...previous.timer,
+        mode: "focus",
         status: "idle",
         remainingSeconds: getDurationSeconds(
-          previous.timer.mode,
+          "focus",
           previous.settings,
         ),
         endsAt: null,
+        focusesCompletedInCycle: 0,
       },
     }));
   }, []);

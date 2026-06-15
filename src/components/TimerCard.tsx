@@ -1,4 +1,5 @@
-import { MODE_EYEBROWS, MODE_LABELS } from "@/constants";
+import { useState } from "react";
+import { MODE_LABELS } from "@/constants";
 import { SessionProgress } from "@/components/SessionProgress";
 import type { TimerMode, TimerStatus } from "@/types";
 
@@ -12,7 +13,6 @@ interface TimerCardProps {
   onStart: () => void;
   onPause: () => void;
   onReset: () => void;
-  onSkip: () => void;
 }
 
 const formatTime = (seconds: number): string => {
@@ -31,8 +31,8 @@ export function TimerCard({
   onStart,
   onPause,
   onReset,
-  onSkip,
 }: TimerCardProps): React.JSX.Element {
+  const [isResetConfirmationOpen, setIsResetConfirmationOpen] = useState(false);
   const radius = 146;
   const circumference = 2 * Math.PI * radius;
   const progress = totalSeconds > 0 ? remainingSeconds / totalSeconds : 0;
@@ -46,13 +46,13 @@ export function TimerCard({
           ? "Start focus"
           : "Start break";
 
+  const confirmReset = (): void => {
+    onReset();
+    setIsResetConfirmationOpen(false);
+  };
+
   return (
     <section className="timer-card" aria-label="Pomodoro timer">
-      <div className="timer-heading">
-        <span className="eyebrow">{MODE_EYEBROWS[mode]}</span>
-        <h1>{MODE_LABELS[mode]}</h1>
-      </div>
-
       <div className="timer-orbit">
         <svg className="progress-ring" viewBox="0 0 336 336" aria-hidden="true">
           <circle className="progress-ring-track" cx="168" cy="168" r={radius} />
@@ -95,13 +95,45 @@ export function TimerCard({
           )}
           {primaryLabel}
         </button>
-        <button className="button button-secondary" type="button" onClick={onReset}>
-          Reset
-        </button>
-        <button className="button button-quiet" type="button" onClick={onSkip}>
-          Skip
-          <span className="skip-glyph" aria-hidden="true" />
-        </button>
+        <div
+          className={
+            isResetConfirmationOpen
+              ? "reset-action is-confirming"
+              : "reset-action"
+          }
+        >
+          <button
+            className="button button-secondary reset-button"
+            type="button"
+            aria-expanded={isResetConfirmationOpen}
+            aria-controls="reset-confirmation"
+            onClick={() => setIsResetConfirmationOpen(true)}
+          >
+            Reset
+          </button>
+          <div
+            className="reset-confirmation"
+            id="reset-confirmation"
+            aria-hidden={!isResetConfirmationOpen}
+          >
+            <button
+              className="button reset-confirm-button"
+              type="button"
+              tabIndex={isResetConfirmationOpen ? 0 : -1}
+              onClick={confirmReset}
+            >
+              Yes
+            </button>
+            <button
+              className="button reset-confirm-button"
+              type="button"
+              tabIndex={isResetConfirmationOpen ? 0 : -1}
+              onClick={() => setIsResetConfirmationOpen(false)}
+            >
+              No
+            </button>
+          </div>
+        </div>
       </div>
     </section>
   );

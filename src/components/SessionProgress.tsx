@@ -12,7 +12,7 @@ export function SessionProgress({
       className="session-progress"
       aria-label={`${Math.min(completed, total)} of ${total} focus sessions completed in this set`}
     >
-      <span className="session-progress-label">Session set</span>
+      <span className="session-progress-label">Sessions</span>
       <div className="session-dots" aria-hidden="true">
         {Array.from({ length: total }, (_, index) => (
           <span

@@ -55,7 +55,7 @@ MonoFocus/
 |   |-- main/index.ts        Native window and Windows notifications
 |   `-- preload/index.ts     Secure renderer-to-main API
 |-- scripts/
-|   `-- generate-icon.ps1    Deterministic monochrome Windows icon
+|   `-- generate-icon.ps1    Converts the badge artwork into PNG/ICO assets
 |-- src/
 |   |-- components/          Timer, tasks, stats, header, and settings UI
 |   |-- hooks/usePomodoro.ts Timer transitions and application state
