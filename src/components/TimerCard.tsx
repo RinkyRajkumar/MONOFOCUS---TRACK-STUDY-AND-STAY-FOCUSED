@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MODE_LABELS } from "@/constants";
 import { SessionProgress } from "@/components/SessionProgress";
+import { FOCUS_QUOTES } from "@/data/focusQuotes";
 import type { TimerMode, TimerStatus } from "@/types";
 
 interface TimerCardProps {
@@ -33,6 +34,11 @@ export function TimerCard({
   onReset,
 }: TimerCardProps): React.JSX.Element {
   const [isResetConfirmationOpen, setIsResetConfirmationOpen] = useState(false);
+  const [quoteOverlay, setQuoteOverlay] = useState<{
+    id: number;
+    text: string;
+  } | null>(null);
+  const quoteTimeout = useRef<number | null>(null);
   const radius = 146;
   const circumference = 2 * Math.PI * radius;
   const progress = totalSeconds > 0 ? remainingSeconds / totalSeconds : 0;
@@ -51,8 +57,55 @@ export function TimerCard({
     setIsResetConfirmationOpen(false);
   };
 
+  const showFocusQuote = (): void => {
+    const text =
+      FOCUS_QUOTES[Math.floor(Math.random() * FOCUS_QUOTES.length)];
+
+    if (quoteTimeout.current) {
+      window.clearTimeout(quoteTimeout.current);
+    }
+
+    setQuoteOverlay({ id: Date.now(), text });
+    quoteTimeout.current = window.setTimeout(() => {
+      setQuoteOverlay(null);
+      quoteTimeout.current = null;
+    }, 3000);
+  };
+
+  const handlePrimaryAction = (): void => {
+    if (status === "running") {
+      onPause();
+      return;
+    }
+
+    if (mode === "focus" && status === "idle") {
+      showFocusQuote();
+    }
+
+    onStart();
+  };
+
+  useEffect(
+    () => () => {
+      if (quoteTimeout.current) {
+        window.clearTimeout(quoteTimeout.current);
+      }
+    },
+    [],
+  );
+
   return (
     <section className="timer-card" aria-label="Pomodoro timer">
+      {quoteOverlay ? (
+        <div
+          className="focus-quote-overlay"
+          key={quoteOverlay.id}
+          aria-live="polite"
+        >
+          <span>Focus cue</span>
+          <p>{quoteOverlay.text}</p>
+        </div>
+      ) : null}
       <div className="timer-orbit">
         <svg className="progress-ring" viewBox="0 0 336 336" aria-hidden="true">
           <circle className="progress-ring-track" cx="168" cy="168" r={radius} />
@@ -86,7 +139,7 @@ export function TimerCard({
         <button
           className="button button-primary"
           type="button"
-          onClick={status === "running" ? onPause : onStart}
+          onClick={handlePrimaryAction}
         >
           {status === "running" ? (
             <span className="pause-glyph" aria-hidden="true" />

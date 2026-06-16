@@ -4,6 +4,19 @@ interface FocusOverlayState {
   mode: "focus" | "shortBreak" | "longBreak";
   status: "idle" | "running" | "paused";
   remainingSeconds: number;
+  theme?: string;
+}
+
+interface AppBlockingState {
+  mode: FocusOverlayState["mode"];
+  status: FocusOverlayState["status"];
+  apps: Array<{ name: string; exePath?: string }>;
+}
+
+interface WebsiteBlockingState {
+  mode: FocusOverlayState["mode"];
+  status: FocusOverlayState["status"];
+  websites: string[];
 }
 
 const monoFocusApi = {
@@ -17,6 +30,22 @@ const monoFocusApi = {
     ipcRenderer.invoke("get-installed-applications") as Promise<
       Array<{ name: string; exePath?: string }>
     >,
+  requestAppBlockingPermission: (): Promise<{
+    granted: boolean;
+    error?: string;
+  }> =>
+    ipcRenderer.invoke("request-app-blocking-permission") as Promise<{
+      granted: boolean;
+      error?: string;
+    }>,
+  requestNotificationControlPermission: (): Promise<{
+    granted: boolean;
+    error?: string;
+  }> =>
+    ipcRenderer.invoke("request-notification-control-permission") as Promise<{
+      granted: boolean;
+      error?: string;
+    }>,
   openWindowsNotificationSettings: (): Promise<boolean> =>
     ipcRenderer.invoke("open-windows-notification-settings") as Promise<boolean>,
   tryEnableFocusMode: (): Promise<{ supported: boolean; platform: string }> =>
@@ -34,6 +63,37 @@ const monoFocusApi = {
     }>,
   updateFocusOverlay: (state: FocusOverlayState): void => {
     ipcRenderer.send("update-focus-overlay", state);
+  },
+  updateAppBlocking: (state: AppBlockingState): void => {
+    ipcRenderer.send("update-app-blocking", state);
+  },
+  updateWebsiteBlocking: (state: WebsiteBlockingState): void => {
+    ipcRenderer.send("update-website-blocking", state);
+  },
+  exportBrowserExtension: (): Promise<{
+    success: boolean;
+    cancelled?: boolean;
+    path?: string;
+    error?: string;
+  }> =>
+    ipcRenderer.invoke("export-browser-extension") as Promise<{
+      success: boolean;
+      cancelled?: boolean;
+      path?: string;
+      error?: string;
+    }>,
+  getBrowserExtensionStatus: (): Promise<{ connected: boolean }> =>
+    ipcRenderer.invoke("get-browser-extension-status") as Promise<{
+      connected: boolean;
+    }>,
+  beginFocusOverlayGesture: (screenX: number, screenY: number): void => {
+    ipcRenderer.send("focus-overlay-pointer-down", { screenX, screenY });
+  },
+  moveFocusOverlayGesture: (screenX: number, screenY: number): void => {
+    ipcRenderer.send("focus-overlay-pointer-move", { screenX, screenY });
+  },
+  endFocusOverlayGesture: (cancelled = false): void => {
+    ipcRenderer.send("focus-overlay-pointer-up", cancelled);
   },
   onFocusOverlayState: (
     callback: (state: FocusOverlayState) => void,

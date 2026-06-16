@@ -1,5 +1,12 @@
 export type TimerMode = "focus" | "shortBreak" | "longBreak";
 export type TimerStatus = "idle" | "running" | "paused";
+export type ThemeId =
+  | "mono"
+  | "paper"
+  | "blush"
+  | "sage"
+  | "sky"
+  | "lavender";
 
 export interface Settings {
   focusMinutes: number;
@@ -10,6 +17,7 @@ export interface Settings {
   notificationsEnabled: boolean;
   autoStartBreaks: boolean;
   autoStartFocus: boolean;
+  theme: ThemeId;
 }
 
 export interface BlockedWebsite {

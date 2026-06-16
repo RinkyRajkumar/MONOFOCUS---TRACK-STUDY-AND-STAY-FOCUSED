@@ -1,4 +1,9 @@
-import type { BlockingSettings, Settings, TimerMode } from "@/types";
+import type {
+  BlockingSettings,
+  Settings,
+  ThemeId,
+  TimerMode,
+} from "@/types";
 
 export const DEFAULT_SETTINGS: Settings = {
   focusMinutes: 25,
@@ -9,7 +14,23 @@ export const DEFAULT_SETTINGS: Settings = {
   notificationsEnabled: true,
   autoStartBreaks: false,
   autoStartFocus: false,
+  theme: "mono",
 };
+
+export interface ThemeOption {
+  id: ThemeId;
+  label: string;
+  swatch: string;
+}
+
+export const THEME_OPTIONS: ThemeOption[] = [
+  { id: "mono", label: "Mono black", swatch: "#111113" },
+  { id: "paper", label: "Clean white", swatch: "#fffaf2" },
+  { id: "blush", label: "Pastel blush", swatch: "#ffe6e4" },
+  { id: "sage", label: "Pastel sage", swatch: "#e5f3dc" },
+  { id: "sky", label: "Pastel sky", swatch: "#e5f1ff" },
+  { id: "lavender", label: "Pastel lavender", swatch: "#eee8ff" },
+];
 
 export const DEFAULT_BLOCKING_SETTINGS: BlockingSettings = {
   websites: [],

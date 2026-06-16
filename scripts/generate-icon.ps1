@@ -72,6 +72,7 @@ function Write-PngIcon {
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $buildDirectory = Join-Path $projectRoot "build"
 $publicDirectory = Join-Path $projectRoot "public"
+$extensionIconDirectory = Join-Path $projectRoot "extension\icons"
 $sourcePath = Join-Path $buildDirectory "icon-source.png"
 $pngPath = Join-Path $buildDirectory "icon.png"
 $icoPngPath = Join-Path $buildDirectory "icon-256.png"
@@ -84,6 +85,7 @@ if (-not (Test-Path -LiteralPath $sourcePath)) {
 
 New-Item -ItemType Directory -Path $buildDirectory -Force | Out-Null
 New-Item -ItemType Directory -Path $publicDirectory -Force | Out-Null
+New-Item -ItemType Directory -Path $extensionIconDirectory -Force | Out-Null
 
 $source = [System.Drawing.Bitmap]::FromFile($sourcePath)
 $workingSize = 2048
@@ -125,6 +127,7 @@ finally {
 
 $appIcon = New-ScaledBitmap -Source $working -Size 1024
 $icoImage = New-ScaledBitmap -Source $working -Size 256
+$extensionIconSizes = @(16, 32, 48, 128)
 
 try {
     $appIcon.Save($pngPath, [System.Drawing.Imaging.ImageFormat]::Png)
@@ -132,6 +135,19 @@ try {
     $icoImage.Save($icoPngPath, [System.Drawing.Imaging.ImageFormat]::Png)
     Write-PngIcon -PngPath $icoPngPath -IconPath $icoPath
     Remove-Item -LiteralPath $icoPngPath -Force
+
+    foreach ($iconSize in $extensionIconSizes) {
+        $extensionIcon = New-ScaledBitmap -Source $working -Size $iconSize
+        try {
+            $extensionIcon.Save(
+                (Join-Path $extensionIconDirectory "icon-$iconSize.png"),
+                [System.Drawing.Imaging.ImageFormat]::Png
+            )
+        }
+        finally {
+            $extensionIcon.Dispose()
+        }
+    }
 }
 finally {
     $icoImage.Dispose()
@@ -139,4 +155,4 @@ finally {
     $working.Dispose()
 }
 
-Write-Output "Generated build/icon.png, build/icon.ico, and public/icon.png"
+Write-Output "Generated build/icon.png, build/icon.ico, public/icon.png, and extension icons"

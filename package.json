@@ -1,6 +1,6 @@
 {
   "name": "monofocus",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A minimal monochrome Pomodoro timer for Windows 11.",
   "main": "./out/main/index.js",
   "author": "MonoFocus",
@@ -43,6 +43,12 @@
       "build/icon.ico",
       "build/icon.png",
       "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "extension",
+        "to": "browser-extension"
+      }
     ],
     "win": {
       "icon": "build/icon.ico",

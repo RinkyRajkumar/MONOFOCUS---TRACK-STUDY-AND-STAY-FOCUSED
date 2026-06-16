@@ -150,7 +150,7 @@ export const usePomodoro = (): PomodoroController => {
     const result = await window.monoFocus.tryEnableFocusMode();
     if (!result.supported) {
       setNotificationNotice(
-        "Open Windows notification settings to enable Do Not Disturb for focus sessions.",
+        "Enable notification control in Blocking > Notifications to quiet Windows notifications during focus sessions.",
       );
     }
   }, []);

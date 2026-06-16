@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import type { Settings } from "@/types";
+import { THEME_OPTIONS } from "@/constants";
+import type { Settings, ThemeId } from "@/types";
 
 interface SettingsPageProps {
   settings: Settings;
@@ -32,11 +33,17 @@ interface ToggleFieldProps {
   onChange: (checked: boolean) => void;
 }
 
+interface ThemeFieldProps {
+  value: ThemeId;
+  onChange: (theme: ThemeId) => void;
+}
+
 const snapToFive = (value: number, max: number): number =>
   Math.min(max, Math.max(5, Math.round(value / 5) * 5));
 
 const normalizeDurations = (settings: Settings): Settings => ({
   ...settings,
+  theme: settings.theme ?? "mono",
   focusMinutes: snapToFive(settings.focusMinutes, 90),
   shortBreakMinutes: snapToFive(settings.shortBreakMinutes, 60),
   longBreakMinutes: snapToFive(settings.longBreakMinutes, 90),
@@ -187,6 +194,34 @@ function ToggleField({
   );
 }
 
+function ThemeField({ value, onChange }: ThemeFieldProps): React.JSX.Element {
+  return (
+    <div className="theme-field">
+      <div>
+        <strong>App theme</strong>
+        <small>Choose a calm color palette for MonoFocus.</small>
+      </div>
+      <div className="theme-swatch-row" role="radiogroup" aria-label="App theme">
+        {THEME_OPTIONS.map((theme) => (
+          <button
+            className={
+              theme.id === value ? "theme-swatch is-selected" : "theme-swatch"
+            }
+            type="button"
+            role="radio"
+            aria-checked={theme.id === value}
+            aria-label={theme.label}
+            title={theme.label}
+            key={theme.id}
+            style={{ "--theme-swatch": theme.swatch } as React.CSSProperties}
+            onClick={() => onChange(theme.id)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function SettingsPage({
   settings,
   onSave,
@@ -196,6 +231,14 @@ export function SettingsPage({
   useEffect(() => {
     setDraft(normalizeDurations(settings));
   }, [settings]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = draft.theme;
+
+    return () => {
+      document.documentElement.dataset.theme = settings.theme;
+    };
+  }, [draft.theme, settings.theme]);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
@@ -295,6 +338,13 @@ export function SettingsPage({
             />
           </div>
         </div>
+
+        <ThemeField
+          value={draft.theme}
+          onChange={(theme) =>
+            setDraft((current) => ({ ...current, theme }))
+          }
+        />
 
         <div className="settings-page-actions">
           <button

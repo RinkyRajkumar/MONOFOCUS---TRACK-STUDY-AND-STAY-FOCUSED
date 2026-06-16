@@ -14,14 +14,48 @@ export function App(): React.JSX.Element {
   const pomodoro = usePomodoro();
 
   useEffect(() => {
+    document.documentElement.dataset.theme = pomodoro.settings.theme;
+  }, [pomodoro.settings.theme]);
+
+  useEffect(() => {
     window.monoFocus?.updateFocusOverlay({
       mode: pomodoro.timer.mode,
       status: pomodoro.timer.status,
       remainingSeconds: pomodoro.timer.remainingSeconds,
+      theme: pomodoro.settings.theme,
     });
   }, [
+    pomodoro.settings.theme,
     pomodoro.timer.mode,
     pomodoro.timer.remainingSeconds,
+    pomodoro.timer.status,
+  ]);
+
+  useEffect(() => {
+    window.monoFocus?.updateAppBlocking({
+      mode: pomodoro.timer.mode,
+      status: pomodoro.timer.status,
+      apps: pomodoro.blockingSettings.apps
+        .filter((blockedApp) => blockedApp.enabled)
+        .map(({ name, exePath }) => ({ name, exePath })),
+    });
+  }, [
+    pomodoro.blockingSettings.apps,
+    pomodoro.timer.mode,
+    pomodoro.timer.status,
+  ]);
+
+  useEffect(() => {
+    window.monoFocus?.updateWebsiteBlocking({
+      mode: pomodoro.timer.mode,
+      status: pomodoro.timer.status,
+      websites: pomodoro.blockingSettings.websites
+        .filter((website) => website.enabled)
+        .map((website) => website.pattern),
+    });
+  }, [
+    pomodoro.blockingSettings.websites,
+    pomodoro.timer.mode,
     pomodoro.timer.status,
   ]);
 

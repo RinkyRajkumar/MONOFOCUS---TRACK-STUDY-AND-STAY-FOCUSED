@@ -37,10 +37,12 @@ const normalizeWebsite = (value: string): string =>
 
 const Toggle = ({
   checked,
+  disabled = false,
   label,
   onChange,
 }: {
   checked: boolean;
+  disabled?: boolean;
   label: string;
   onChange: (checked: boolean) => void;
 }): React.JSX.Element => (
@@ -50,6 +52,7 @@ const Toggle = ({
     role="switch"
     aria-checked={checked}
     aria-label={label}
+    disabled={disabled}
     title={label}
     onClick={() => onChange(!checked)}
   >
@@ -66,10 +69,17 @@ export function FocusBlockPanel({
   onOpenWindowsSettings,
 }: FocusBlockPanelProps): React.JSX.Element {
   const [websiteInput, setWebsiteInput] = useState("");
-  const [websiteCategory, setWebsiteCategory] = useState("Custom");
   const [installedApps, setInstalledApps] = useState<InstalledApplication[]>([]);
   const [appSearch, setAppSearch] = useState("");
   const [isLoadingApps, setIsLoadingApps] = useState(false);
+  const [isRequestingAppPermission, setIsRequestingAppPermission] =
+    useState(false);
+  const [
+    isRequestingNotificationPermission,
+    setIsRequestingNotificationPermission,
+  ] = useState(false);
+  const [isExportingExtension, setIsExportingExtension] = useState(false);
+  const [extensionConnected, setExtensionConnected] = useState(false);
   const [status, setStatus] = useState<StatusMessage | null>(null);
   const [activeSection, setActiveSection] =
     useState<BlockingSection>("websites");
@@ -136,6 +146,27 @@ export function FocusBlockPanel({
     return () => window.clearTimeout(timeout);
   }, [status]);
 
+  useEffect(() => {
+    if (!window.monoFocus) {
+      return;
+    }
+
+    let mounted = true;
+    const checkConnection = async (): Promise<void> => {
+      const result = await window.monoFocus?.getBrowserExtensionStatus();
+      if (mounted) {
+        setExtensionConnected(Boolean(result?.connected));
+      }
+    };
+
+    void checkConnection();
+    const interval = window.setInterval(() => void checkConnection(), 3000);
+    return () => {
+      mounted = false;
+      window.clearInterval(interval);
+    };
+  }, []);
+
   const updateWebsites = (websites: BlockedWebsite[]): void => {
     onChange({ ...settings, websites });
   };
@@ -175,7 +206,7 @@ export function FocusBlockPanel({
       {
         id: crypto.randomUUID(),
         pattern,
-        category: websiteCategory,
+        category: "Custom",
         enabled: true,
       },
     ]);
@@ -183,7 +214,7 @@ export function FocusBlockPanel({
     setStatus({ text: "Website added", tone: "success" });
   };
 
-  const addApp = (application: InstalledApplication): void => {
+  const addApp = async (application: InstalledApplication): Promise<void> => {
     const identity = (application.exePath ?? application.name).toLowerCase();
     if (
       settings.apps.some(
@@ -192,6 +223,28 @@ export function FocusBlockPanel({
     ) {
       setStatus({ text: "Already in blocklist", tone: "error" });
       return;
+    }
+
+    if (!window.monoFocus) {
+      setStatus({
+        text: "App blocking permission requires the MonoFocus desktop app",
+        tone: "info",
+      });
+      return;
+    }
+
+    setIsRequestingAppPermission(true);
+    try {
+      const permission = await window.monoFocus.requestAppBlockingPermission();
+      if (!permission.granted) {
+        setStatus({
+          text: permission.error ?? "App blocking permission was not granted",
+          tone: "error",
+        });
+        return;
+      }
+    } finally {
+      setIsRequestingAppPermission(false);
     }
 
     updateApps([
@@ -214,6 +267,98 @@ export function FocusBlockPanel({
         : "Windows notification settings are unavailable here",
       tone: opened ? "success" : "info",
     });
+  };
+
+  const requestNotificationControl = async (): Promise<boolean> => {
+    if (!window.monoFocus) {
+      setStatus({
+        text: "Notification control requires the MonoFocus desktop app",
+        tone: "info",
+      });
+      return false;
+    }
+
+    setIsRequestingNotificationPermission(true);
+    try {
+      const permission =
+        await window.monoFocus.requestNotificationControlPermission();
+      if (!permission.granted) {
+        setStatus({
+          text:
+            permission.error ??
+            "Windows notification control permission was not granted",
+          tone: "error",
+        });
+        return false;
+      }
+
+      setStatus({
+        text: "Windows notification control enabled",
+        tone: "success",
+      });
+      return true;
+    } finally {
+      setIsRequestingNotificationPermission(false);
+    }
+  };
+
+  const updateSilenceNotifications = async (
+    silenceDuringFocus: boolean,
+  ): Promise<void> => {
+    if (silenceDuringFocus && !(await requestNotificationControl())) {
+      return;
+    }
+
+    updateNotifications({ silenceDuringFocus });
+    setStatus({
+      text: silenceDuringFocus
+        ? "Notification blocking enabled"
+        : "Notification blocking disabled",
+      tone: "success",
+    });
+  };
+
+  const updateWindowsFocusUsage = async (
+    useWindowsFocus: boolean,
+  ): Promise<void> => {
+    if (useWindowsFocus && !(await requestNotificationControl())) {
+      return;
+    }
+
+    updateNotifications({ useWindowsFocus });
+    setStatus({
+      text: useWindowsFocus
+        ? "Windows Focus / Do Not Disturb control enabled"
+        : "Windows Focus / Do Not Disturb control disabled",
+      tone: "success",
+    });
+  };
+
+  const exportBrowserExtension = async (): Promise<void> => {
+    if (!window.monoFocus) {
+      setStatus({
+        text: "Extension download requires the MonoFocus desktop app",
+        tone: "info",
+      });
+      return;
+    }
+
+    setIsExportingExtension(true);
+    try {
+      const result = await window.monoFocus.exportBrowserExtension();
+      if (result.cancelled) {
+        return;
+      }
+
+      setStatus({
+        text: result.success
+          ? "Extension downloaded. Extract it and load the folder in Chromium."
+          : result.error ?? "Extension download failed",
+        tone: result.success ? "success" : "error",
+      });
+    } finally {
+      setIsExportingExtension(false);
+    }
   };
 
   return (
@@ -273,7 +418,7 @@ export function FocusBlockPanel({
         </button>
       </nav>
 
-      <div className="blocking-content">
+      <div className={`blocking-content is-${activeSection}`}>
         {activeSection === "websites" ? (
         <article className="blocking-card blocking-section-page">
           <div className="blocking-card-heading">
@@ -283,6 +428,55 @@ export function FocusBlockPanel({
             </div>
             <span>{settings.websites.length}</span>
           </div>
+
+          <section
+            className="browser-extension-card"
+            aria-labelledby="browser-extension-title"
+          >
+            <div className="browser-extension-summary">
+              <span className="browser-extension-mark" aria-hidden="true">
+                <span />
+              </span>
+              <div>
+                <div className="browser-extension-title-row">
+                  <strong id="browser-extension-title">
+                    MonoFocus Website Blocker
+                  </strong>
+                  <span
+                    className={
+                      extensionConnected
+                        ? "browser-extension-status is-connected"
+                        : "browser-extension-status"
+                    }
+                  >
+                    {extensionConnected ? "Connected" : "Not connected"}
+                  </span>
+                </div>
+                <p>
+                  Syncs this blocklist to Chrome, Edge, Brave, and other
+                  Chromium browsers while focus is active.
+                </p>
+              </div>
+            </div>
+
+            <div className="browser-extension-install">
+              <ol>
+                <li>Download and extract the ZIP.</li>
+                <li>Open chrome://extensions or edge://extensions.</li>
+                <li>Enable Developer mode, then choose Load unpacked.</li>
+              </ol>
+              <button
+                className="button button-primary"
+                type="button"
+                disabled={isExportingExtension || platform !== "win32"}
+                onClick={() => void exportBrowserExtension()}
+              >
+                {isExportingExtension
+                  ? "Preparing..."
+                  : "Download extension"}
+              </button>
+            </div>
+          </section>
 
           <div className="blocking-list">
             {settings.websites.length === 0 ? (
@@ -331,16 +525,6 @@ export function FocusBlockPanel({
               aria-label="Website or URL"
               onChange={(event) => setWebsiteInput(event.target.value)}
             />
-            <select
-              value={websiteCategory}
-              aria-label="Website category"
-              onChange={(event) => setWebsiteCategory(event.target.value)}
-            >
-              <option>Custom</option>
-              <option>Social</option>
-              <option>Video</option>
-              <option>Gaming</option>
-            </select>
             <button className="button button-primary" type="submit">
               Add Website
             </button>
@@ -468,11 +652,15 @@ export function FocusBlockPanel({
                             : "installed-app-add"
                         }
                         type="button"
-                        disabled={isAdded}
+                        disabled={isAdded || isRequestingAppPermission}
                         aria-label={`${isAdded ? "Added" : "Add"} ${application.name}`}
-                        onClick={() => addApp(application)}
+                        onClick={() => void addApp(application)}
                       >
-                        {isAdded ? "Added" : "Add"}
+                        {isAdded
+                          ? "Added"
+                          : isRequestingAppPermission
+                            ? "Allowing..."
+                            : "Add"}
                       </button>
                     </div>
                   );
@@ -480,10 +668,6 @@ export function FocusBlockPanel({
               )}
             </div>
           </div>
-          <p className="blocking-helper">
-            Choose an installed application above. During focus mode, supported
-            blocked apps will be closed automatically if opened.
-          </p>
         </article>
         ) : null}
 
@@ -507,16 +691,11 @@ export function FocusBlockPanel({
               </div>
               <Toggle
                 checked={settings.notifications.silenceDuringFocus}
+                disabled={isRequestingNotificationPermission}
                 label="Silence system notifications during focus sessions"
-                onChange={(silenceDuringFocus) => {
-                  updateNotifications({ silenceDuringFocus });
-                  setStatus({
-                    text: silenceDuringFocus
-                      ? "Notification blocking enabled"
-                      : "Notification blocking disabled",
-                    tone: "success",
-                  });
-                }}
+                onChange={(silenceDuringFocus) =>
+                  void updateSilenceNotifications(silenceDuringFocus)
+                }
               />
             </div>
             <div className="notification-option">
@@ -525,9 +704,10 @@ export function FocusBlockPanel({
               </div>
               <Toggle
                 checked={settings.notifications.useWindowsFocus}
+                disabled={isRequestingNotificationPermission}
                 label="Use Windows Focus or Do Not Disturb when available"
                 onChange={(useWindowsFocus) =>
-                  updateNotifications({ useWindowsFocus })
+                  void updateWindowsFocusUsage(useWindowsFocus)
                 }
               />
             </div>
@@ -551,7 +731,7 @@ export function FocusBlockPanel({
                 ? "System notification blocking is currently available only on Windows."
                 : platform === "web"
                   ? "System-wide notification control requires a desktop app build."
-                  : "On Windows 11, this uses Focus / Do Not Disturb where supported. If direct control is unavailable, open Windows settings to enable it manually."}
+                  : "On Windows 11, MonoFocus can request administrator permission once to quiet notifications during focus sessions and restore them afterward."}
             </p>
             <button
               className="button button-secondary"
@@ -565,15 +745,6 @@ export function FocusBlockPanel({
         </article>
         ) : null}
 
-        {activeSection === "websites" ? (
-        <aside className="blocking-info">
-          <span aria-hidden="true">i</span>
-          <p>
-            Website blocking works best with the browser extension installed.
-            System-level domain blocking may require administrator permission.
-          </p>
-        </aside>
-        ) : null}
       </div>
     </section>
   );
