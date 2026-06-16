@@ -11,12 +11,14 @@ interface AppBlockingState {
   mode: FocusOverlayState["mode"];
   status: FocusOverlayState["status"];
   apps: Array<{ name: string; exePath?: string }>;
+  permanentApps: Array<{ name: string; exePath?: string }>;
 }
 
 interface WebsiteBlockingState {
   mode: FocusOverlayState["mode"];
   status: FocusOverlayState["status"];
   websites: string[];
+  permanentWebsites: string[];
 }
 
 const monoFocusApi = {
@@ -63,6 +65,9 @@ const monoFocusApi = {
     }>,
   updateFocusOverlay: (state: FocusOverlayState): void => {
     ipcRenderer.send("update-focus-overlay", state);
+  },
+  hideFocusOverlay: (): void => {
+    ipcRenderer.send("hide-focus-overlay");
   },
   updateAppBlocking: (state: AppBlockingState): void => {
     ipcRenderer.send("update-app-blocking", state);

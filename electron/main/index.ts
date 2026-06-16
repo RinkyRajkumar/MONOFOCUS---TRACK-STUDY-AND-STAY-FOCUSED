@@ -4,9 +4,11 @@ import {
   dialog,
   ipcMain,
   Menu,
+  nativeImage,
   Notification,
   screen,
   shell,
+  Tray,
 } from "electron";
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -31,12 +33,14 @@ interface AppBlockingState {
   mode: "focus" | "shortBreak" | "longBreak";
   status: "idle" | "running" | "paused";
   apps: InstalledApplication[];
+  permanentApps: InstalledApplication[];
 }
 
 interface WebsiteBlockingState {
   mode: "focus" | "shortBreak" | "longBreak";
   status: "idle" | "running" | "paused";
   websites: string[];
+  permanentWebsites: string[];
 }
 
 interface BrowserExtensionExportResult {
@@ -71,6 +75,9 @@ interface OverlayDragState extends OverlayPointerPosition {
 const execFileAsync = promisify(execFile);
 let mainWindow: BrowserWindow | null = null;
 let focusOverlayWindow: BrowserWindow | null = null;
+let tray: Tray | null = null;
+let isQuitting = false;
+let isFocusOverlayDismissed = false;
 let focusOverlayState: FocusOverlayState = {
   mode: "focus",
   status: "idle",
@@ -81,11 +88,13 @@ let appBlockingState: AppBlockingState = {
   mode: "focus",
   status: "idle",
   apps: [],
+  permanentApps: [],
 };
 let websiteBlockingState: WebsiteBlockingState = {
   mode: "focus",
   status: "idle",
   websites: [],
+  permanentWebsites: [],
 };
 let elevatedHelperStarting = false;
 let elevatedHelperStopPath: string | null = null;
@@ -280,14 +289,19 @@ const startBrowserBridge = (): void => {
     }
 
     browserExtensionLastSeenAt = Date.now();
-    const active =
+    const focusActive =
       websiteBlockingState.mode === "focus" &&
       websiteBlockingState.status === "running";
+    const websites = [
+      ...websiteBlockingState.permanentWebsites,
+      ...(focusActive ? websiteBlockingState.websites : []),
+    ];
+    const active = websites.length > 0;
     response.writeHead(200, { "Content-Type": "application/json" });
     response.end(
       JSON.stringify({
         active,
-        websites: active ? websiteBlockingState.websites : [],
+        websites: [...new Set(websites)],
       }),
     );
   });
@@ -374,7 +388,14 @@ const exportBrowserExtension =
   };
 
 const getEnabledExecutableNames = (): string[] => {
-  const names = appBlockingState.apps
+  const focusActive =
+    appBlockingState.mode === "focus" &&
+    appBlockingState.status === "running";
+  const activeApps = [
+    ...appBlockingState.permanentApps,
+    ...(focusActive ? appBlockingState.apps : []),
+  ];
+  const names = activeApps
     .map((blockedApp) => blockedApp.exePath ?? blockedApp.name)
     .map((value) => value.split(/[\\/]/).pop()?.trim() ?? "")
     .map((value) => (value.toLowerCase().endsWith(".exe") ? value : `${value}.exe`))
@@ -460,10 +481,7 @@ const startElevatedAppBlocking = async (
     elevatedHelperStopPath = stopPath;
 
     const latestExecutables = getEnabledExecutableNames();
-    const shouldStillBlock =
-      appBlockingState.mode === "focus" &&
-      appBlockingState.status === "running" &&
-      latestExecutables.length > 0;
+    const shouldStillBlock = latestExecutables.length > 0;
     const shouldKeepHelperAlive =
       appBlockingPermissionGranted || shouldStillBlock;
 
@@ -489,12 +507,9 @@ const startElevatedAppBlocking = async (
 };
 
 const syncElevatedAppBlocking = async (): Promise<void> => {
-  const shouldBlock =
-    appBlockingState.mode === "focus" &&
-    appBlockingState.status === "running";
   const executables = getEnabledExecutableNames();
 
-  if (!shouldBlock || executables.length === 0) {
+  if (executables.length === 0) {
     if (elevatedHelperConfigPath && appBlockingPermissionGranted) {
       await writeFile(
         elevatedHelperConfigPath,
@@ -804,6 +819,7 @@ const getInstalledApplications = async (): Promise<InstalledApplication[]> => {
 };
 
 const shouldShowFocusOverlay = (): boolean =>
+  !isFocusOverlayDismissed &&
   focusOverlayState.mode === "focus" &&
   focusOverlayState.status === "running" &&
   Boolean(mainWindow && !mainWindow.isFocused());
@@ -907,6 +923,55 @@ const syncTitleBarTheme = (theme = focusOverlayState.theme): void => {
   mainWindow.setBackgroundColor(titleBarTheme.color);
 };
 
+const getAppIconPath = (): string => join(__dirname, "../../build/icon.png");
+
+const showMainWindow = (): void => {
+  isFocusOverlayDismissed = false;
+
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow();
+    return;
+  }
+
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore();
+  }
+
+  mainWindow.show();
+  mainWindow.focus();
+  focusOverlayWindow?.hide();
+};
+
+const createTray = (): void => {
+  if (tray) {
+    return;
+  }
+
+  const icon = nativeImage
+    .createFromPath(getAppIconPath())
+    .resize({ width: 16, height: 16 });
+
+  tray = new Tray(icon);
+  tray.setToolTip("MonoFocus");
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      {
+        label: "Open MonoFocus",
+        click: showMainWindow,
+      },
+      {
+        label: "Quit",
+        click: () => {
+          isQuitting = true;
+          app.quit();
+        },
+      },
+    ]),
+  );
+  tray.on("click", showMainWindow);
+  tray.on("double-click", showMainWindow);
+};
+
 const loadRenderer = (
   window: BrowserWindow,
   query?: Record<string, string>,
@@ -936,7 +1001,7 @@ const createFocusOverlayWindow = (): void => {
     movable: true,
     minimizable: false,
     maximizable: false,
-    focusable: false,
+    focusable: true,
     skipTaskbar: true,
     hasShadow: false,
     alwaysOnTop: true,
@@ -984,9 +1049,21 @@ const createWindow = (): void => {
     syncTitleBarTheme();
     mainWindow?.show();
   });
-  mainWindow.on("focus", syncFocusOverlay);
+  mainWindow.on("focus", () => {
+    isFocusOverlayDismissed = false;
+    syncFocusOverlay();
+  });
   mainWindow.on("blur", syncFocusOverlay);
   mainWindow.on("move", positionFocusOverlay);
+  mainWindow.on("close", (event) => {
+    if (isQuitting) {
+      return;
+    }
+
+    event.preventDefault();
+    mainWindow?.hide();
+    syncFocusOverlay();
+  });
   mainWindow.on("closed", () => {
     mainWindow = null;
     focusOverlayWindow?.close();
@@ -1001,6 +1078,7 @@ const createWindow = (): void => {
 app.whenReady().then(() => {
   app.setAppUserModelId("com.monofocus.desktop");
   Menu.setApplicationMenu(null);
+  createTray();
 
   ipcMain.handle(
     "show-notification",
@@ -1049,7 +1127,16 @@ app.whenReady().then(() => {
         return;
       }
 
+      const previousState = focusOverlayState;
       focusOverlayState = state;
+      if (
+        state.status !== "running" ||
+        state.mode !== "focus" ||
+        previousState.status !== state.status ||
+        previousState.mode !== state.mode
+      ) {
+        isFocusOverlayDismissed = false;
+      }
       syncTitleBarTheme(state.theme);
       syncFocusOverlay();
     },
@@ -1108,6 +1195,15 @@ app.whenReady().then(() => {
       };
     },
   );
+  ipcMain.on("hide-focus-overlay", (event) => {
+    if (!focusOverlayWindow || event.sender !== focusOverlayWindow.webContents) {
+      return;
+    }
+
+    overlayDragState = null;
+    isFocusOverlayDismissed = true;
+    focusOverlayWindow.hide();
+  });
   ipcMain.on(
     "focus-overlay-pointer-move",
     (event, pointer: OverlayPointerPosition) => {
@@ -1147,7 +1243,6 @@ app.whenReady().then(() => {
     }
 
     const moved = overlayDragState.moved;
-    const wasQuickClick = Date.now() - overlayDragState.startedAt < 300;
     overlayDragState = null;
     if (cancelled) {
       return;
@@ -1158,12 +1253,13 @@ app.whenReady().then(() => {
       return;
     }
 
-    if (wasQuickClick && mainWindow) {
+    if (mainWindow) {
       if (mainWindow.isMinimized()) {
         mainWindow.restore();
       }
       mainWindow.show();
       mainWindow.focus();
+      focusOverlayWindow.hide();
     }
   });
 
@@ -1206,13 +1302,15 @@ app.whenReady().then(() => {
   );
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
+    showMainWindow();
   });
 });
 
 app.on("window-all-closed", () => {
+  if (!isQuitting && process.platform !== "darwin") {
+    return;
+  }
+
   void stopElevatedAppBlocking();
   void stopElevatedNotificationControl();
   browserBridgeServer?.close();
@@ -1220,4 +1318,8 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
   }
+});
+
+app.on("before-quit", () => {
+  isQuitting = true;
 });

@@ -15,7 +15,8 @@ interface FocusBlockPanelProps {
 }
 
 type StatusTone = "success" | "error" | "info";
-type BlockingSection = "websites" | "apps" | "notifications";
+type BlockingSection = "websites" | "apps" | "permanent" | "notifications";
+type PermanentPanel = "websites" | "apps" | null;
 
 interface StatusMessage {
   text: string;
@@ -69,6 +70,7 @@ export function FocusBlockPanel({
   onOpenWindowsSettings,
 }: FocusBlockPanelProps): React.JSX.Element {
   const [websiteInput, setWebsiteInput] = useState("");
+  const [permanentWebsiteInput, setPermanentWebsiteInput] = useState("");
   const [installedApps, setInstalledApps] = useState<InstalledApplication[]>([]);
   const [appSearch, setAppSearch] = useState("");
   const [isLoadingApps, setIsLoadingApps] = useState(false);
@@ -83,6 +85,7 @@ export function FocusBlockPanel({
   const [status, setStatus] = useState<StatusMessage | null>(null);
   const [activeSection, setActiveSection] =
     useState<BlockingSection>("websites");
+  const [permanentPanel, setPermanentPanel] = useState<PermanentPanel>(null);
   const [platform, setPlatform] = useState<"loading" | "win32" | "other" | "web">(
     "loading",
   );
@@ -175,6 +178,14 @@ export function FocusBlockPanel({
     onChange({ ...settings, apps });
   };
 
+  const updatePermanentWebsites = (permanentWebsites: BlockedWebsite[]): void => {
+    onChange({ ...settings, permanentWebsites });
+  };
+
+  const updatePermanentApps = (permanentApps: BlockedApp[]): void => {
+    onChange({ ...settings, permanentApps });
+  };
+
   const updateNotifications = (
     notifications: Partial<BlockingSettings["notifications"]>,
   ): void => {
@@ -212,6 +223,37 @@ export function FocusBlockPanel({
     ]);
     setWebsiteInput("");
     setStatus({ text: "Website added", tone: "success" });
+  };
+
+  const addPermanentWebsite = (event: FormEvent<HTMLFormElement>): void => {
+    event.preventDefault();
+    const pattern = normalizeWebsite(permanentWebsiteInput);
+
+    if (!pattern) {
+      setStatus({ text: "Enter a website or URL", tone: "error" });
+      return;
+    }
+
+    if (
+      settings.permanentWebsites.some(
+        (website) => website.pattern === pattern,
+      )
+    ) {
+      setStatus({ text: "Already permanently blocked", tone: "error" });
+      return;
+    }
+
+    updatePermanentWebsites([
+      ...settings.permanentWebsites,
+      {
+        id: crypto.randomUUID(),
+        pattern,
+        category: "Permanent",
+        enabled: true,
+      },
+    ]);
+    setPermanentWebsiteInput("");
+    setStatus({ text: "Permanent website block added", tone: "success" });
   };
 
   const addApp = async (application: InstalledApplication): Promise<void> => {
@@ -257,6 +299,53 @@ export function FocusBlockPanel({
       },
     ]);
     setStatus({ text: "App added", tone: "success" });
+  };
+
+  const addPermanentApp = async (
+    application: InstalledApplication,
+  ): Promise<void> => {
+    const identity = (application.exePath ?? application.name).toLowerCase();
+    if (
+      settings.permanentApps.some(
+        (app) => (app.exePath ?? app.name).toLowerCase() === identity,
+      )
+    ) {
+      setStatus({ text: "Already permanently blocked", tone: "error" });
+      return;
+    }
+
+    if (!window.monoFocus) {
+      setStatus({
+        text: "App blocking permission requires the MonoFocus desktop app",
+        tone: "info",
+      });
+      return;
+    }
+
+    setIsRequestingAppPermission(true);
+    try {
+      const permission = await window.monoFocus.requestAppBlockingPermission();
+      if (!permission.granted) {
+        setStatus({
+          text: permission.error ?? "App blocking permission was not granted",
+          tone: "error",
+        });
+        return;
+      }
+    } finally {
+      setIsRequestingAppPermission(false);
+    }
+
+    updatePermanentApps([
+      ...settings.permanentApps,
+      {
+        id: crypto.randomUUID(),
+        name: application.name,
+        exePath: application.exePath,
+        enabled: true,
+      },
+    ]);
+    setStatus({ text: "Permanent app block added", tone: "success" });
   };
 
   const openNotificationSettings = async (): Promise<void> => {
@@ -369,7 +458,7 @@ export function FocusBlockPanel({
           <h2 id="blocking-title">Blocking</h2>
           <p>
             Choose the apps, websites, and notifications you want to block
-            during focus sessions.
+            during focus sessions or permanently.
           </p>
         </div>
         <span
@@ -408,6 +497,13 @@ export function FocusBlockPanel({
           onClick={() => setActiveSection("apps")}
         >
           Apps
+        </button>
+        <button
+          type="button"
+          aria-pressed={activeSection === "permanent"}
+          onClick={() => setActiveSection("permanent")}
+        >
+          Permanent
         </button>
         <button
           type="button"
@@ -473,7 +569,7 @@ export function FocusBlockPanel({
               >
                 {isExportingExtension
                   ? "Preparing..."
-                  : "Download extension"}
+                  : "Download"}
               </button>
             </div>
           </section>
@@ -525,14 +621,14 @@ export function FocusBlockPanel({
               aria-label="Website or URL"
               onChange={(event) => setWebsiteInput(event.target.value)}
             />
-            <button className="button button-primary" type="submit">
-              Add Website
+            <button
+              className="button button-primary blocking-symbol-button"
+              type="submit"
+              aria-label="Add website"
+            >
+              +
             </button>
           </form>
-          <p className="blocking-helper">
-            Specific URLs work best with the browser extension. Domain blocking
-            applies to the whole site.
-          </p>
         </article>
         ) : null}
 
@@ -667,6 +763,286 @@ export function FocusBlockPanel({
                 })
               )}
             </div>
+          </div>
+        </article>
+        ) : null}
+
+        {activeSection === "permanent" ? (
+        <article className="blocking-card blocking-section-page permanent-blocking-page">
+          <div className="blocking-card-heading">
+            <div>
+              <h3>Permanent Blocking</h3>
+              <p>
+                Keep selected websites and desktop apps blocked even when the
+                focus timer is not running.
+              </p>
+            </div>
+            <span>
+              {settings.permanentWebsites.length +
+                settings.permanentApps.length}
+            </span>
+          </div>
+
+          <div className="permanent-blocking-grid">
+            <section
+              className={
+                permanentPanel === "websites"
+                  ? "permanent-blocking-section is-open"
+                  : "permanent-blocking-section"
+              }
+            >
+              <button
+                className="permanent-blocking-section-heading"
+                type="button"
+                aria-expanded={permanentPanel === "websites"}
+                onClick={() =>
+                  setPermanentPanel((current) =>
+                    current === "websites" ? null : "websites",
+                  )
+                }
+              >
+                <strong>Websites</strong>
+                <span>
+                  {settings.permanentWebsites.length}
+                  <small aria-hidden="true" />
+                </span>
+              </button>
+
+              <div className="permanent-blocking-section-body">
+                <div className="blocking-list">
+                  {settings.permanentWebsites.length === 0 ? (
+                    <div className="blocking-empty">
+                      No permanently blocked websites yet.
+                    </div>
+                  ) : (
+                    settings.permanentWebsites.map((website) => (
+                      <div className="blocking-row" key={website.id}>
+                        <div className="blocking-row-copy">
+                          <strong>{website.pattern}</strong>
+                          <small>Permanent</small>
+                        </div>
+                        <Toggle
+                          checked={website.enabled}
+                          label={`${website.enabled ? "Disable" : "Enable"} permanent block for ${website.pattern}`}
+                          onChange={(enabled) =>
+                            updatePermanentWebsites(
+                              settings.permanentWebsites.map((item) =>
+                                item.id === website.id
+                                  ? { ...item, enabled }
+                                  : item,
+                              ),
+                            )
+                          }
+                        />
+                        <button
+                          className="blocking-remove"
+                          type="button"
+                          aria-label={`Remove permanent block for ${website.pattern}`}
+                          onClick={() => {
+                            updatePermanentWebsites(
+                              settings.permanentWebsites.filter(
+                                (item) => item.id !== website.id,
+                              ),
+                            );
+                            setStatus({
+                              text: "Permanent website block removed",
+                              tone: "success",
+                            });
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <form
+                  className="blocking-add-form"
+                  onSubmit={addPermanentWebsite}
+                >
+                  <input
+                    type="text"
+                    value={permanentWebsiteInput}
+                    placeholder="Add website or URL to block permanently"
+                    aria-label="Permanent website or URL"
+                    onChange={(event) =>
+                      setPermanentWebsiteInput(event.target.value)
+                    }
+                  />
+                  <button
+                    className="button button-primary blocking-symbol-button"
+                    type="submit"
+                    aria-label="Add permanent website"
+                  >
+                    +
+                  </button>
+                </form>
+              </div>
+            </section>
+
+            <section
+              className={
+                permanentPanel === "apps"
+                  ? "permanent-blocking-section is-open"
+                  : "permanent-blocking-section"
+              }
+            >
+              <button
+                className="permanent-blocking-section-heading"
+                type="button"
+                aria-expanded={permanentPanel === "apps"}
+                onClick={() =>
+                  setPermanentPanel((current) =>
+                    current === "apps" ? null : "apps",
+                  )
+                }
+              >
+                <strong>Apps</strong>
+                <span>
+                  {settings.permanentApps.length}
+                  <small aria-hidden="true" />
+                </span>
+              </button>
+
+              <div className="permanent-blocking-section-body">
+                <div className="blocking-list">
+                  {settings.permanentApps.length === 0 ? (
+                    <div className="blocking-empty">
+                      No permanently blocked apps yet.
+                    </div>
+                  ) : (
+                    settings.permanentApps.map((app) => (
+                      <div className="blocking-row" key={app.id}>
+                        <div className="blocking-row-copy">
+                          <strong>{app.name}</strong>
+                          {app.exePath ? <small>{app.exePath}</small> : null}
+                        </div>
+                        <Toggle
+                          checked={app.enabled}
+                          label={`${app.enabled ? "Disable" : "Enable"} permanent block for ${app.name}`}
+                          onChange={(enabled) =>
+                            updatePermanentApps(
+                              settings.permanentApps.map((item) =>
+                                item.id === app.id ? { ...item, enabled } : item,
+                              ),
+                            )
+                          }
+                        />
+                        <button
+                          className="blocking-remove"
+                          type="button"
+                          aria-label={`Remove permanent block for ${app.name}`}
+                          onClick={() => {
+                            updatePermanentApps(
+                              settings.permanentApps.filter(
+                                (item) => item.id !== app.id,
+                              ),
+                            );
+                            setStatus({
+                              text: "Permanent app block removed",
+                              tone: "success",
+                            });
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="installed-app-picker permanent-app-picker">
+                  <div className="installed-app-toolbar">
+                    <input
+                      type="search"
+                      value={appSearch}
+                      placeholder="Search applications on this PC"
+                      aria-label="Search installed applications for permanent blocking"
+                      disabled={platform !== "win32"}
+                      onChange={(event) => setAppSearch(event.target.value)}
+                    />
+                    <button
+                      className="button button-secondary"
+                      type="button"
+                      disabled={platform !== "win32" || isLoadingApps}
+                      onClick={() => void loadInstalledApps()}
+                    >
+                      {isLoadingApps ? "Scanning..." : "Refresh"}
+                    </button>
+                  </div>
+
+                  <div
+                    className="installed-app-list"
+                    aria-label="Installed applications for permanent blocking"
+                  >
+                    {platform === "web" ? (
+                      <div className="blocking-empty">
+                        Installed applications are available in the desktop app.
+                      </div>
+                    ) : platform === "other" ? (
+                      <div className="blocking-empty">
+                        Application discovery is currently available only on
+                        Windows.
+                      </div>
+                    ) : platform === "loading" ? (
+                      <div className="blocking-empty">Checking this device...</div>
+                    ) : isLoadingApps ? (
+                      <div className="blocking-empty">
+                        Scanning installed applications...
+                      </div>
+                    ) : filteredInstalledApps.length === 0 ? (
+                      <div className="blocking-empty">
+                        {appSearch
+                          ? "No applications match your search."
+                          : "No installed applications were found."}
+                      </div>
+                    ) : (
+                      filteredInstalledApps.map((application) => {
+                        const identity = (
+                          application.exePath ?? application.name
+                        ).toLowerCase();
+                        const isAdded = settings.permanentApps.some(
+                          (app) =>
+                            (app.exePath ?? app.name).toLowerCase() === identity,
+                        );
+
+                        return (
+                          <div
+                            className="installed-app-row"
+                            key={`permanent-${application.name}|${application.exePath ?? ""}`}
+                          >
+                            <div className="blocking-row-copy">
+                              <strong>{application.name}</strong>
+                              {application.exePath ? (
+                                <small>{application.exePath}</small>
+                              ) : null}
+                            </div>
+                            <button
+                              className={
+                                isAdded
+                                  ? "installed-app-add is-added"
+                                  : "installed-app-add"
+                              }
+                              type="button"
+                              disabled={isAdded || isRequestingAppPermission}
+                              aria-label={`${isAdded ? "Added" : "Add"} permanent block for ${application.name}`}
+                              onClick={() => void addPermanentApp(application)}
+                            >
+                              {isAdded
+                                ? "Added"
+                                : isRequestingAppPermission
+                                  ? "Allowing..."
+                                  : "Add"}
+                            </button>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              </div>
+            </section>
           </div>
         </article>
         ) : null}

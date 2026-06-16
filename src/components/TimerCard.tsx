@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { FormEvent } from "react";
 import { MODE_LABELS } from "@/constants";
 import { SessionProgress } from "@/components/SessionProgress";
 import { FOCUS_QUOTES } from "@/data/focusQuotes";
@@ -12,8 +13,11 @@ interface TimerCardProps {
   completedInCycle: number;
   cycleTotal: number;
   onStart: () => void;
+  onStartFocusTask: (title: string) => void;
   onPause: () => void;
   onReset: () => void;
+  pendingFocusTaskReview: { title: string } | null;
+  onResolveFocusTask: (completed: boolean) => void;
 }
 
 const formatTime = (seconds: number): string => {
@@ -30,10 +34,15 @@ export function TimerCard({
   completedInCycle,
   cycleTotal,
   onStart,
+  onStartFocusTask,
   onPause,
   onReset,
+  pendingFocusTaskReview,
+  onResolveFocusTask,
 }: TimerCardProps): React.JSX.Element {
   const [isResetConfirmationOpen, setIsResetConfirmationOpen] = useState(false);
+  const [isFocusPromptOpen, setIsFocusPromptOpen] = useState(false);
+  const [focusInput, setFocusInput] = useState("");
   const [quoteOverlay, setQuoteOverlay] = useState<{
     id: number;
     text: string;
@@ -69,7 +78,7 @@ export function TimerCard({
     quoteTimeout.current = window.setTimeout(() => {
       setQuoteOverlay(null);
       quoteTimeout.current = null;
-    }, 3000);
+    }, 3960);
   };
 
   const handlePrimaryAction = (): void => {
@@ -79,10 +88,24 @@ export function TimerCard({
     }
 
     if (mode === "focus" && status === "idle") {
-      showFocusQuote();
+      setIsFocusPromptOpen(true);
+      return;
     }
 
     onStart();
+  };
+
+  const submitFocusPrompt = (event: FormEvent<HTMLFormElement>): void => {
+    event.preventDefault();
+    const title = focusInput.trim();
+    if (!title) {
+      return;
+    }
+
+    onStartFocusTask(title);
+    setFocusInput("");
+    setIsFocusPromptOpen(false);
+    showFocusQuote();
   };
 
   useEffect(
@@ -104,6 +127,62 @@ export function TimerCard({
         >
           <span>Focus cue</span>
           <p>{quoteOverlay.text}</p>
+        </div>
+      ) : null}
+      {isFocusPromptOpen ? (
+        <div className="focus-task-overlay" role="dialog" aria-modal="true">
+          <form className="focus-task-dialog" onSubmit={submitFocusPrompt}>
+            <span>Main focus</span>
+            <h3>What is your main focus today?</h3>
+            <input
+              type="text"
+              value={focusInput}
+              autoFocus
+              placeholder="One clear task..."
+              aria-label="Main focus today"
+              onChange={(event) => setFocusInput(event.target.value)}
+            />
+            <div className="focus-task-actions">
+              <button
+                className="button button-secondary"
+                type="button"
+                onClick={() => {
+                  setIsFocusPromptOpen(false);
+                  setFocusInput("");
+                }}
+              >
+                Cancel
+              </button>
+              <button className="button button-primary" type="submit">
+                Start
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+      {pendingFocusTaskReview ? (
+        <div className="focus-task-overlay" role="dialog" aria-modal="true">
+          <div className="focus-task-dialog">
+            <span>Session review</span>
+            <h3>Did you complete this task?</h3>
+            <p>{pendingFocusTaskReview.title}</p>
+            <div className="focus-task-actions">
+              <button
+                className="button button-secondary"
+                type="button"
+                onClick={() => onResolveFocusTask(false)}
+              >
+                Not completed
+              </button>
+              <button
+                className="button button-primary"
+                type="button"
+                onClick={() => onResolveFocusTask(true)}
+              >
+                Completed
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
       <div className="timer-orbit">

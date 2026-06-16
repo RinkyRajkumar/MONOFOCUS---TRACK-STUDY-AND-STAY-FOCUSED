@@ -38,9 +38,13 @@ export function App(): React.JSX.Element {
       apps: pomodoro.blockingSettings.apps
         .filter((blockedApp) => blockedApp.enabled)
         .map(({ name, exePath }) => ({ name, exePath })),
+      permanentApps: pomodoro.blockingSettings.permanentApps
+        .filter((blockedApp) => blockedApp.enabled)
+        .map(({ name, exePath }) => ({ name, exePath })),
     });
   }, [
     pomodoro.blockingSettings.apps,
+    pomodoro.blockingSettings.permanentApps,
     pomodoro.timer.mode,
     pomodoro.timer.status,
   ]);
@@ -52,8 +56,12 @@ export function App(): React.JSX.Element {
       websites: pomodoro.blockingSettings.websites
         .filter((website) => website.enabled)
         .map((website) => website.pattern),
+      permanentWebsites: pomodoro.blockingSettings.permanentWebsites
+        .filter((website) => website.enabled)
+        .map((website) => website.pattern),
     });
   }, [
+    pomodoro.blockingSettings.permanentWebsites,
     pomodoro.blockingSettings.websites,
     pomodoro.timer.mode,
     pomodoro.timer.status,
@@ -86,7 +94,7 @@ export function App(): React.JSX.Element {
           ) : activeView === "settings" ? (
             <SettingsPage
               settings={pomodoro.settings}
-              onSave={pomodoro.updateSettings}
+              onChange={pomodoro.updateSettings}
             />
           ) : activeView === "report" ? (
             <ReportPage
@@ -105,8 +113,11 @@ export function App(): React.JSX.Element {
               completedInCycle={pomodoro.timer.focusesCompletedInCycle}
               cycleTotal={pomodoro.settings.pomodorosBeforeLongBreak}
               onStart={pomodoro.start}
+              onStartFocusTask={pomodoro.startWithTask}
               onPause={pomodoro.pause}
               onReset={pomodoro.reset}
+              pendingFocusTaskReview={pomodoro.pendingFocusTaskReview}
+              onResolveFocusTask={pomodoro.resolveFocusTaskReview}
             />
           )}
         </div>

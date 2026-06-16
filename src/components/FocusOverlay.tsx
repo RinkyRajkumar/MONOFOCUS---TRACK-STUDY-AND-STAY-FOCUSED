@@ -40,6 +40,7 @@ export function FocusOverlay(): React.JSX.Element {
           return;
         }
 
+        event.preventDefault();
         event.currentTarget.setPointerCapture(event.pointerId);
         activePointerId.current = event.pointerId;
         window.monoFocus?.beginFocusOverlayGesture(event.screenX, event.screenY);
@@ -49,6 +50,7 @@ export function FocusOverlay(): React.JSX.Element {
           activePointerId.current === event.pointerId &&
           event.currentTarget.hasPointerCapture(event.pointerId)
         ) {
+          event.preventDefault();
           window.monoFocus?.moveFocusOverlayGesture(event.screenX, event.screenY);
         }
       }}
@@ -77,6 +79,20 @@ export function FocusOverlay(): React.JSX.Element {
         <span>Focus</span>
         <time>{formatTime(timer.remainingSeconds)}</time>
       </div>
+      <button
+        className="focus-overlay-close"
+        type="button"
+        aria-label="Hide timer overlay"
+        onPointerDown={(event) => {
+          event.stopPropagation();
+        }}
+        onClick={(event) => {
+          event.stopPropagation();
+          window.monoFocus?.hideFocusOverlay();
+        }}
+      >
+        x
+      </button>
     </main>
   );
 }

@@ -30,15 +30,18 @@ interface Window {
       remainingSeconds: number;
       theme?: string;
     }) => void;
+    hideFocusOverlay: () => void;
     updateAppBlocking: (state: {
       mode: "focus" | "shortBreak" | "longBreak";
       status: "idle" | "running" | "paused";
       apps: Array<{ name: string; exePath?: string }>;
+      permanentApps: Array<{ name: string; exePath?: string }>;
     }) => void;
     updateWebsiteBlocking: (state: {
       mode: "focus" | "shortBreak" | "longBreak";
       status: "idle" | "running" | "paused";
       websites: string[];
+      permanentWebsites: string[];
     }) => void;
     exportBrowserExtension: () => Promise<{
       success: boolean;

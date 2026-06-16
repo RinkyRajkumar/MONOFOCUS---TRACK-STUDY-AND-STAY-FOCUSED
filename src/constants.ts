@@ -35,6 +35,8 @@ export const THEME_OPTIONS: ThemeOption[] = [
 export const DEFAULT_BLOCKING_SETTINGS: BlockingSettings = {
   websites: [],
   apps: [],
+  permanentWebsites: [],
+  permanentApps: [],
   notifications: {
     silenceDuringFocus: false,
     useWindowsFocus: true,

@@ -218,9 +218,10 @@ body {
 }
 
 .focus-overlay {
+  position: relative;
   width: 100%;
   height: 100%;
-  padding: 0 18px;
+  padding: 0 34px 0 18px;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -272,6 +273,44 @@ body {
   font-weight: 350;
   letter-spacing: -0.055em;
   line-height: 1;
+}
+
+.focus-overlay-close {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--overlay-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--overlay-panel), var(--text) 7%);
+  color: var(--overlay-muted);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 520;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%) scale(0.92);
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease,
+    color 160ms ease,
+    background 160ms ease;
+}
+
+.focus-overlay:hover .focus-overlay-close,
+.focus-overlay-close:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(-50%) scale(1);
+}
+
+.focus-overlay-close:hover {
+  background: var(--text);
+  color: var(--app-bg);
 }
 
 input,
@@ -372,15 +411,14 @@ textarea {
   display: grid;
   place-content: center;
   padding: 34px;
-  border: 1px solid rgb(255 255 255 / 8%);
+  border: 1px solid var(--line-soft);
   border-radius: calc(var(--radius-large) - 8px);
   background:
     radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--white), transparent 88%), transparent 22rem),
-    color-mix(in srgb, var(--bg), transparent 14%);
-  backdrop-filter: blur(18px);
+    var(--panel);
   pointer-events: none;
   text-align: center;
-  animation: focus-quote-reveal 3000ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: focus-quote-reveal 3960ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .focus-quote-overlay span {
@@ -404,6 +442,85 @@ textarea {
   font-weight: 420;
   letter-spacing: -0.04em;
   line-height: 1.16;
+}
+
+.focus-task-overlay {
+  position: absolute;
+  z-index: 6;
+  inset: clamp(18px, 4vh, 34px);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  border: 1px solid var(--line-soft);
+  border-radius: calc(var(--radius-large) - 8px);
+  background:
+    radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--white), transparent 90%), transparent 22rem),
+    var(--panel);
+  animation: dialog-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.focus-task-dialog {
+  width: min(430px, 100%);
+  display: grid;
+  gap: 13px;
+  text-align: center;
+}
+
+.focus-task-dialog > span {
+  color: var(--text-muted);
+  font-size: calc(10px + var(--type-grow));
+  font-weight: 720;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.focus-task-dialog h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: calc(24px + var(--type-grow));
+  font-weight: 620;
+  letter-spacing: -0.045em;
+}
+
+.focus-task-dialog p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: calc(13px + var(--type-grow));
+  line-height: 1.45;
+}
+
+.focus-task-dialog input {
+  width: 100%;
+  height: 48px;
+  padding: 0 15px;
+  border: 1px solid var(--control-border);
+  border-radius: 14px;
+  outline: 0;
+  background: var(--control-bg);
+  color: var(--text);
+  font-size: calc(13px + var(--type-grow));
+}
+
+.focus-task-dialog input:focus {
+  border-color: var(--control-border-hover);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--white), transparent 88%);
+}
+
+.focus-task-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.focus-task-actions .button {
+  width: 100%;
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98) translateY(8px);
+  }
 }
 
 @keyframes focus-quote-reveal {
@@ -1294,12 +1411,12 @@ textarea {
 
 .blocking-section-nav {
   position: relative;
-  width: min(100%, 460px);
+  width: min(100%, 560px);
   min-height: 44px;
   margin-top: clamp(16px, 2.5vh, 22px);
   padding: 4px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   flex: 0 0 auto;
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -1333,7 +1450,7 @@ textarea {
   top: 4px;
   bottom: 4px;
   left: 4px;
-  width: calc((100% - 8px) / 3);
+  width: calc((100% - 8px) / 4);
   border: 1px solid var(--control-border-hover);
   border-radius: 999px;
   background:
@@ -1350,8 +1467,12 @@ textarea {
   transform: translateX(100%);
 }
 
-.blocking-section-nav.is-notifications .blocking-section-indicator {
+.blocking-section-nav.is-permanent .blocking-section-indicator {
   transform: translateX(200%);
+}
+
+.blocking-section-nav.is-notifications .blocking-section-indicator {
+  transform: translateX(300%);
 }
 
 @keyframes blocking-toast-in {
@@ -1411,6 +1532,8 @@ textarea {
 }
 
 .blocking-card {
+  --blocking-action-width: clamp(118px, 13vw, 136px);
+
   padding: 18px;
   border: 1px solid var(--line-soft);
   border-radius: 19px;
@@ -1577,7 +1700,7 @@ textarea {
 .blocking-add-form {
   margin-top: 10px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(118px, max-content);
+  grid-template-columns: minmax(0, 1fr) var(--blocking-action-width);
   gap: 8px;
 }
 
@@ -1606,6 +1729,15 @@ textarea {
   width: 100%;
   min-height: 39px;
   white-space: nowrap;
+}
+
+.blocking-add-form .blocking-symbol-button {
+  display: grid;
+  place-items: center;
+  padding-bottom: 2px;
+  font-size: calc(25px + var(--type-grow));
+  font-weight: 430;
+  line-height: 1;
 }
 
 .app-add-form {
@@ -1710,6 +1842,141 @@ textarea {
   color: var(--text-muted);
 }
 
+.permanent-blocking-page {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+
+.permanent-blocking-grid {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.permanent-blocking-section {
+  min-width: 0;
+  padding: 13px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line-soft);
+  border-radius: 15px;
+  background: var(--control-bg);
+  overflow: hidden;
+  transition:
+    border-color 180ms ease,
+    background 180ms ease;
+}
+
+.permanent-blocking-section.is-open {
+  border-color: var(--control-border-hover);
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--white), transparent 95%), transparent 60%),
+    var(--control-bg);
+}
+
+.permanent-blocking-section-heading {
+  width: 100%;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.permanent-blocking-section-heading strong {
+  color: var(--text);
+  font-size: calc(12px + var(--type-grow));
+  font-weight: 620;
+}
+
+.permanent-blocking-section-heading span {
+  min-width: 46px;
+  height: 24px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  place-items: center;
+  gap: 6px;
+  padding: 0 7px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: calc(9px + var(--type-grow));
+  font-variant-numeric: tabular-nums;
+}
+
+.permanent-blocking-section-heading span small {
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg) translateY(-1px);
+  transition: transform 200ms ease;
+}
+
+.permanent-blocking-section.is-open .permanent-blocking-section-heading span small {
+  transform: rotate(225deg) translateY(-1px);
+}
+
+.permanent-blocking-section-body {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition:
+    max-height 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 180ms ease,
+    margin-top 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.permanent-blocking-section.is-open .permanent-blocking-section-body {
+  margin-top: 13px;
+  max-height: 760px;
+  opacity: 1;
+}
+
+.permanent-app-picker {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+.permanent-app-picker .installed-app-list {
+  max-height: none;
+}
+
+.permanent-blocking-section .blocking-add-form {
+  grid-template-columns: minmax(0, 1fr) 56px;
+  align-items: stretch;
+}
+
+.permanent-blocking-section .blocking-add-form .blocking-symbol-button {
+  width: 56px;
+  height: 39px;
+  min-height: 39px;
+  border-radius: 12px;
+  justify-self: end;
+}
+
+.permanent-blocking-section .installed-app-toolbar {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px;
+}
+
+.permanent-blocking-section .installed-app-toolbar .button {
+  padding-right: 11px;
+  padding-left: 11px;
+}
+
 .blocking-helper {
   margin: 8px 2px 0;
   color: var(--text-muted);
@@ -1811,9 +2078,9 @@ textarea {
 .browser-extension-install {
   margin-top: 13px;
   padding-top: 12px;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--blocking-action-width);
   align-items: center;
-  justify-content: space-between;
   gap: 18px;
   border-top: 1px solid var(--line-soft);
 }
@@ -1829,8 +2096,8 @@ textarea {
 }
 
 .browser-extension-install .button {
-  min-height: 36px;
-  flex: 0 0 auto;
+  width: 100%;
+  min-height: 39px;
   padding: 0 15px;
   font-size: calc(9px + var(--type-grow));
   white-space: nowrap;
@@ -2027,9 +2294,9 @@ textarea {
 
 .report-metric {
   min-width: 0;
-  padding: clamp(11px, 1.6vh, 14px) clamp(14px, 2vw, 18px);
+  padding: clamp(8px, 1vh, 10px) clamp(14px, 2vw, 18px);
   border: 1px solid var(--line-soft);
-  border-radius: 18px;
+  border-radius: 16px;
   background:
     linear-gradient(145deg, color-mix(in srgb, var(--white), transparent 94%), transparent 65%),
     var(--panel);
@@ -2045,7 +2312,7 @@ textarea {
 
 .report-metric strong {
   display: block;
-  margin: 4px 0 2px;
+  margin: 2px 0 0;
   color: var(--text);
   font-size: clamp(
     calc(28px + var(--type-grow)),
@@ -2061,7 +2328,7 @@ textarea {
 .report-metric small {
   color: var(--text-muted);
   font-size: calc(10px + var(--type-grow));
-  line-height: 1.2;
+  line-height: 1.1;
 }
 
 .focus-calendar {
@@ -2802,14 +3069,6 @@ textarea {
   outline-offset: 3px;
 }
 
-.settings-page-actions {
-  margin-top: auto;
-  padding-top: clamp(16px, 3vh, 25px);
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-}
-
 @media (max-width: 940px) {
   .app-content {
     padding-right: 30px;
@@ -2940,11 +3199,11 @@ textarea {
   }
 
   .report-metric {
-    padding: 9px 13px;
+    padding: 7px 13px;
   }
 
   .report-metric strong {
-    margin: 3px 0 1px;
+    margin: 1px 0 0;
     font-size: calc(27px + var(--type-grow));
   }
 
@@ -2987,10 +3246,6 @@ textarea {
   .setting-toggle small {
     margin-top: 3px;
     font-size: calc(10px + var(--type-grow));
-  }
-
-  .settings-page-actions {
-    padding-top: 14px;
   }
 
   .duration-menu {
@@ -3102,6 +3357,14 @@ textarea {
 
   .blocking-add-form,
   .app-add-form {
+    grid-template-columns: 1fr;
+  }
+
+  .permanent-blocking-section .blocking-add-form {
+    grid-template-columns: 1fr;
+  }
+
+  .browser-extension-install {
     grid-template-columns: 1fr;
   }
 

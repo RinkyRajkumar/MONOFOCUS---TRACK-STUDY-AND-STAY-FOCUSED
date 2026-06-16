@@ -87,12 +87,15 @@ const notifySessionComplete = async (
 
 export interface PomodoroController extends PersistedState {
   start: () => void;
+  startWithTask: (title: string) => void;
   pause: () => void;
   reset: () => void;
   skip: () => void;
   addTask: (title: string) => void;
   toggleTask: (id: string) => void;
   deleteTask: (id: string) => void;
+  pendingFocusTaskReview: Task | null;
+  resolveFocusTaskReview: (completed: boolean) => void;
   updateSettings: (settings: Settings) => void;
   updateBlockingSettings: (settings: BlockingSettings) => void;
   toggleSound: () => void;
@@ -106,8 +109,14 @@ export const usePomodoro = (): PomodoroController => {
   const [notificationNotice, setNotificationNotice] = useState<string | null>(
     null,
   );
+  const [pendingFocusTaskReviewId, setPendingFocusTaskReviewId] = useState<
+    string | null
+  >(null);
   const stateRef = useRef(state);
   stateRef.current = state;
+
+  const pendingFocusTaskReview =
+    state.tasks.find((task) => task.id === pendingFocusTaskReviewId) ?? null;
 
   useEffect(() => {
     saveState(state);
@@ -175,6 +184,9 @@ export const usePomodoro = (): PomodoroController => {
       const completedMode = current.timer.mode;
       const completedFocus =
         completedNaturally && completedMode === "focus";
+      const completedFocusTaskId = completedFocus
+        ? current.timer.focusTaskId
+        : null;
       const focusesCompletedInCycle = completedFocus
         ? current.timer.focusesCompletedInCycle + 1
         : current.timer.focusesCompletedInCycle;
@@ -201,6 +213,7 @@ export const usePomodoro = (): PomodoroController => {
           remainingSeconds: duration,
           endsAt: nextStatus === "running" ? now + duration * 1000 : null,
           focusesCompletedInCycle: nextCycleCount,
+          focusTaskId: completedMode === "focus" ? null : previous.timer.focusTaskId,
         },
         stats: completedFocus
           ? {
@@ -224,6 +237,10 @@ export const usePomodoro = (): PomodoroController => {
 
       if (completedMode === "focus") {
         void tryRestoreNotifications();
+      }
+
+      if (completedFocusTaskId) {
+        setPendingFocusTaskReviewId(completedFocusTaskId);
       }
 
       if (completedNaturally) {
@@ -304,6 +321,49 @@ export const usePomodoro = (): PomodoroController => {
     }
   }, [trySilenceNotifications]);
 
+  const startWithTask = useCallback(
+    (title: string): void => {
+      const trimmedTitle = title.trim();
+      if (!trimmedTitle) {
+        return;
+      }
+
+      const current = stateRef.current;
+      if (current.timer.status === "running") {
+        return;
+      }
+
+      if (current.settings.soundEnabled) {
+        playSessionStartTone(current.timer.mode);
+      }
+
+      const task: Task = {
+        id: crypto.randomUUID(),
+        title: trimmedTitle,
+        completed: false,
+        createdAt: new Date().toISOString(),
+        completedAt: null,
+      };
+
+      setState((previous) => ({
+        ...previous,
+        tasks: [task, ...previous.tasks],
+        timer: {
+          ...previous.timer,
+          status: "running",
+          endsAt: Date.now() + previous.timer.remainingSeconds * 1000,
+          focusTaskId: previous.timer.mode === "focus" ? task.id : null,
+        },
+        stats: refreshDailyStats(previous.stats),
+      }));
+
+      if (current.timer.mode === "focus") {
+        void trySilenceNotifications();
+      }
+    },
+    [trySilenceNotifications],
+  );
+
   const pause = useCallback((): void => {
     if (stateRef.current.settings.soundEnabled) {
       playPauseTone();
@@ -345,6 +405,7 @@ export const usePomodoro = (): PomodoroController => {
         ),
         endsAt: null,
         focusesCompletedInCycle: 0,
+        focusTaskId: null,
       },
     }));
 
@@ -410,6 +471,45 @@ export const usePomodoro = (): PomodoroController => {
     });
   }, []);
 
+  const resolveFocusTaskReview = useCallback((completed: boolean): void => {
+    const taskId = pendingFocusTaskReviewId;
+    if (!taskId) {
+      return;
+    }
+
+    setPendingFocusTaskReviewId(null);
+
+    if (!completed) {
+      return;
+    }
+
+    setState((previous) => {
+      let completedDelta = 0;
+      const tasks = previous.tasks.map((task): Task => {
+        if (task.id !== taskId || task.completed) {
+          return task;
+        }
+
+        completedDelta = 1;
+        return {
+          ...task,
+          completed: true,
+          completedAt: new Date().toISOString(),
+        };
+      });
+      const stats = refreshDailyStats(previous.stats);
+
+      return {
+        ...previous,
+        tasks,
+        stats: {
+          ...stats,
+          completedTasks: stats.completedTasks + completedDelta,
+        },
+      };
+    });
+  }, [pendingFocusTaskReviewId]);
+
   const deleteTask = useCallback((id: string): void => {
     setState((previous) => ({
       ...previous,
@@ -462,12 +562,15 @@ export const usePomodoro = (): PomodoroController => {
   return {
     ...state,
     start,
+    startWithTask,
     pause,
     reset,
     skip,
     addTask,
     toggleTask,
     deleteTask,
+    pendingFocusTaskReview,
+    resolveFocusTaskReview,
     updateSettings,
     updateBlockingSettings,
     toggleSound,

@@ -37,6 +37,8 @@ export interface BlockedApp {
 export interface BlockingSettings {
   websites: BlockedWebsite[];
   apps: BlockedApp[];
+  permanentWebsites: BlockedWebsite[];
+  permanentApps: BlockedApp[];
   notifications: {
     silenceDuringFocus: boolean;
     useWindowsFocus: boolean;
@@ -50,6 +52,7 @@ export interface TimerState {
   remainingSeconds: number;
   endsAt: number | null;
   focusesCompletedInCycle: number;
+  focusTaskId: string | null;
 }
 
 export interface Task {

@@ -20,6 +20,7 @@ const createTimerState = (): TimerState => ({
   remainingSeconds: getDurationSeconds("focus", DEFAULT_SETTINGS),
   endsAt: null,
   focusesCompletedInCycle: 0,
+  focusTaskId: null,
 });
 
 export const createInitialState = (): PersistedState => ({
@@ -70,6 +71,14 @@ export const loadState = (): PersistedState => {
           : [],
         apps: Array.isArray(parsed.blockingSettings?.apps)
           ? parsed.blockingSettings.apps
+          : [],
+        permanentWebsites: Array.isArray(
+          parsed.blockingSettings?.permanentWebsites,
+        )
+          ? parsed.blockingSettings.permanentWebsites
+          : [],
+        permanentApps: Array.isArray(parsed.blockingSettings?.permanentApps)
+          ? parsed.blockingSettings.permanentApps
           : [],
         notifications: {
           ...DEFAULT_BLOCKING_SETTINGS.notifications,

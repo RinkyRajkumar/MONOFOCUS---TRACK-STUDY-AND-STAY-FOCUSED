@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import type { FormEvent } from "react";
 import { THEME_OPTIONS } from "@/constants";
 import type { Settings, ThemeId } from "@/types";
 
 interface SettingsPageProps {
   settings: Settings;
-  onSave: (settings: Settings) => void;
+  onChange: (settings: Settings) => void;
 }
 
 interface NumberFieldProps {
@@ -224,25 +223,18 @@ function ThemeField({ value, onChange }: ThemeFieldProps): React.JSX.Element {
 
 export function SettingsPage({
   settings,
-  onSave,
+  onChange,
 }: SettingsPageProps): React.JSX.Element {
-  const [draft, setDraft] = useState(() => normalizeDurations(settings));
+  const normalizedSettings = normalizeDurations(settings);
 
-  useEffect(() => {
-    setDraft(normalizeDurations(settings));
-  }, [settings]);
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = draft.theme;
-
-    return () => {
-      document.documentElement.dataset.theme = settings.theme;
-    };
-  }, [draft.theme, settings.theme]);
-
-  const handleSubmit = (event: FormEvent<HTMLFormElement>): void => {
-    event.preventDefault();
-    onSave(draft);
+  const saveSetting = <Key extends keyof Settings>(
+    key: Key,
+    value: Settings[Key],
+  ): void => {
+    onChange({
+      ...normalizedSettings,
+      [key]: value,
+    });
   };
 
   return (
@@ -255,49 +247,46 @@ export function SettingsPage({
         <span className="settings-local-label">Saved locally</span>
       </div>
 
-      <form className="settings-page-form" onSubmit={handleSubmit}>
+      <div className="settings-page-form">
         <div className="settings-sections">
           <div className="settings-group">
             <h3>Timer</h3>
             <DurationField
               label="Focus duration"
               hint="Length of each deep work session"
-              value={draft.focusMinutes}
+              value={normalizedSettings.focusMinutes}
               max={90}
               onChange={(focusMinutes) =>
-                setDraft((current) => ({ ...current, focusMinutes }))
+                saveSetting("focusMinutes", focusMinutes)
               }
             />
             <DurationField
               label="Short break"
               hint="A quick reset between sessions"
-              value={draft.shortBreakMinutes}
+              value={normalizedSettings.shortBreakMinutes}
               max={60}
               onChange={(shortBreakMinutes) =>
-                setDraft((current) => ({ ...current, shortBreakMinutes }))
+                saveSetting("shortBreakMinutes", shortBreakMinutes)
               }
             />
             <DurationField
               label="Long break"
               hint="A longer pause after a complete set"
-              value={draft.longBreakMinutes}
+              value={normalizedSettings.longBreakMinutes}
               max={90}
               onChange={(longBreakMinutes) =>
-                setDraft((current) => ({ ...current, longBreakMinutes }))
+                saveSetting("longBreakMinutes", longBreakMinutes)
               }
             />
             <NumberField
               label="Sessions per set"
               hint="Focus sessions before the long break"
-              value={draft.pomodorosBeforeLongBreak}
+              value={normalizedSettings.pomodorosBeforeLongBreak}
               min={2}
               max={10}
               suffix="sessions"
               onChange={(pomodorosBeforeLongBreak) =>
-                setDraft((current) => ({
-                  ...current,
-                  pomodorosBeforeLongBreak,
-                }))
+                saveSetting("pomodorosBeforeLongBreak", pomodorosBeforeLongBreak)
               }
             />
           </div>
@@ -307,58 +296,43 @@ export function SettingsPage({
             <ToggleField
               label="Completion sound"
               hint="Play soft tones when sessions start and end"
-              checked={draft.soundEnabled}
+              checked={normalizedSettings.soundEnabled}
               onChange={(soundEnabled) =>
-                setDraft((current) => ({ ...current, soundEnabled }))
+                saveSetting("soundEnabled", soundEnabled)
               }
             />
             <ToggleField
               label="Windows notifications"
               hint="Show a desktop notification at transitions"
-              checked={draft.notificationsEnabled}
+              checked={normalizedSettings.notificationsEnabled}
               onChange={(notificationsEnabled) =>
-                setDraft((current) => ({ ...current, notificationsEnabled }))
+                saveSetting("notificationsEnabled", notificationsEnabled)
               }
             />
             <ToggleField
               label="Auto-start breaks"
               hint="Begin the next break immediately"
-              checked={draft.autoStartBreaks}
+              checked={normalizedSettings.autoStartBreaks}
               onChange={(autoStartBreaks) =>
-                setDraft((current) => ({ ...current, autoStartBreaks }))
+                saveSetting("autoStartBreaks", autoStartBreaks)
               }
             />
             <ToggleField
               label="Auto-start focus"
               hint="Begin focus after a break ends"
-              checked={draft.autoStartFocus}
+              checked={normalizedSettings.autoStartFocus}
               onChange={(autoStartFocus) =>
-                setDraft((current) => ({ ...current, autoStartFocus }))
+                saveSetting("autoStartFocus", autoStartFocus)
               }
             />
           </div>
         </div>
 
         <ThemeField
-          value={draft.theme}
-          onChange={(theme) =>
-            setDraft((current) => ({ ...current, theme }))
-          }
+          value={normalizedSettings.theme}
+          onChange={(theme) => saveSetting("theme", theme)}
         />
-
-        <div className="settings-page-actions">
-          <button
-            className="button button-secondary"
-            type="button"
-            onClick={() => setDraft(normalizeDurations(settings))}
-          >
-            Discard
-          </button>
-          <button className="button button-primary" type="submit">
-            Save changes
-          </button>
-        </div>
-      </form>
+      </div>
     </section>
   );
 }
